@@ -1,0 +1,244 @@
+import jsPDF from "jspdf";
+import type { CaseContent, ChatMessage } from "./types";
+
+interface ExportParams {
+  caseContent?: CaseContent;
+  summary?: string;
+  messages?: ChatMessage[];
+  title: string;
+}
+
+const PAGE_MARGIN = 20;
+const FOOTER_HEIGHT = 16;
+const BODY_FONT_SIZE = 11;
+const HEADING_FONT_SIZE = 14;
+const SUBHEADING_FONT_SIZE = 12;
+const LINE_HEIGHT_RATIO = 1.55;
+
+const COLOR_DARK: [number, number, number] = [15, 30, 60];
+const COLOR_BODY: [number, number, number] = [40, 40, 40];
+const COLOR_MUTED: [number, number, number] = [100, 100, 100];
+const COLOR_RULE: [number, number, number] = [200, 200, 210];
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,6}\s+(.+)$/gm, "$1")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/_(.+?)_/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/\[(.+?)\]\(.+?\)/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "\u2022 ")
+    .replace(/^\s*(\d+)\.\s+/gm, "$1. ")
+    .replace(/^\s*>\s+/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function cleanCaseText(raw: string): string {
+  // Strip leading XML/metadata block before the actual legal text
+  const markers = [
+    "RECHTBANK",
+    "GERECHTSHOF",
+    "RAAD VAN STATE",
+    "CENTRALE RAAD",
+    "HOGE RAAD",
+    "Uitspraak",
+  ];
+  for (const marker of markers) {
+    const idx = raw.indexOf(marker);
+    if (idx !== -1 && idx < 2000) {
+      return raw.substring(idx);
+    }
+  }
+  return raw;
+}
+
+export function exportToPDF({ caseContent, summary, messages, title }: ExportParams) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const contentW = pageW - PAGE_MARGIN * 2;
+  const bottomBoundary = pageH - FOOTER_HEIGHT - PAGE_MARGIN;
+
+  let y = PAGE_MARGIN;
+
+  function mmPerLine(fontSize: number) {
+    return (fontSize * LINE_HEIGHT_RATIO) / 2.83;
+  }
+
+  function ensureSpace(needed: number) {
+    if (y + needed > bottomBoundary) {
+      doc.addPage();
+      y = PAGE_MARGIN + 6;
+    }
+  }
+
+  function writeText(
+    text: string,
+    opts: {
+      size?: number;
+      style?: "normal" | "bold" | "italic";
+      color?: [number, number, number];
+      afterGap?: number;
+    } = {},
+  ) {
+    const size = opts.size ?? BODY_FONT_SIZE;
+    const style = opts.style ?? "normal";
+    const color = opts.color ?? COLOR_BODY;
+    const afterGap = opts.afterGap ?? 3;
+
+    doc.setFont("helvetica", style);
+    doc.setFontSize(size);
+    doc.setTextColor(...color);
+
+    const lines = doc.splitTextToSize(text, contentW) as string[];
+    const lh = mmPerLine(size);
+
+    for (const line of lines) {
+      ensureSpace(lh);
+      doc.text(line, PAGE_MARGIN, y);
+      y += lh;
+    }
+    y += afterGap;
+  }
+
+  function writeSectionHeading(text: string) {
+    ensureSpace(14);
+    y += 2;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(HEADING_FONT_SIZE);
+    doc.setTextColor(...COLOR_DARK);
+    const lines = doc.splitTextToSize(text, contentW) as string[];
+    const lh = mmPerLine(HEADING_FONT_SIZE);
+    for (const line of lines) {
+      ensureSpace(lh);
+      doc.text(line, PAGE_MARGIN, y);
+      y += lh;
+    }
+    // underline beneath the heading
+    doc.setDrawColor(...COLOR_DARK);
+    doc.setLineWidth(0.5);
+    doc.line(PAGE_MARGIN, y, pageW - PAGE_MARGIN, y);
+    y += 5;
+  }
+
+  function writeDivider() {
+    ensureSpace(8);
+    y += 3;
+    doc.setDrawColor(...COLOR_RULE);
+    doc.setLineWidth(0.25);
+    doc.line(PAGE_MARGIN, y, pageW - PAGE_MARGIN, y);
+    y += 6;
+  }
+
+  function writeMetaRow(label: string, value: string) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(BODY_FONT_SIZE);
+    doc.setTextColor(...COLOR_DARK);
+    const labelW = doc.getTextWidth(label + "  ");
+    ensureSpace(mmPerLine(BODY_FONT_SIZE) + 2);
+    doc.text(label, PAGE_MARGIN, y);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...COLOR_BODY);
+    const valueLines = doc.splitTextToSize(value, contentW - labelW) as string[];
+    const lh = mmPerLine(BODY_FONT_SIZE);
+    for (let i = 0; i < valueLines.length; i++) {
+      if (i > 0) ensureSpace(lh);
+      doc.text(valueLines[i], PAGE_MARGIN + labelW, y);
+      if (i < valueLines.length - 1) y += lh;
+    }
+    y += lh + 1;
+  }
+
+  // ── Cover header bar ──
+  doc.setFillColor(...COLOR_DARK);
+  doc.rect(0, 0, pageW, 32, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(17);
+  doc.text("Legal Case Analysis Report", PAGE_MARGIN, 14);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(180, 195, 220);
+  doc.text("Rechtspraak.nl  |  AI-Powered Legal Research", PAGE_MARGIN, 21);
+  doc.text(
+    `Generated: ${new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`,
+    PAGE_MARGIN,
+    27,
+  );
+
+  y = 42;
+
+  // ── Case title ──
+  writeText(title, { size: SUBHEADING_FONT_SIZE + 1, style: "bold", color: COLOR_DARK, afterGap: 5 });
+
+  // ── Metadata table ──
+  if (caseContent) {
+    const meta = caseContent.metadata ?? {};
+    writeMetaRow("ECLI:", caseContent.ecli);
+    if (meta.creator) writeMetaRow("Court:", meta.creator);
+    if (meta.date) writeMetaRow("Date:", meta.date);
+    if (meta.zaaknummer) writeMetaRow("Case No.:", meta.zaaknummer);
+    if (meta.subject) writeMetaRow("Subject:", meta.subject);
+  }
+
+  writeDivider();
+
+  // ── AI Summary ──
+  if (summary) {
+    writeSectionHeading("Summary");
+    writeText(stripMarkdown(summary), { afterGap: 4 });
+    writeDivider();
+  }
+
+  // ── Q&A ──
+  if (messages && messages.length > 0) {
+    let first = true;
+    for (const msg of messages) {
+      if (msg.role === "user") {
+        if (!first) writeDivider();
+        first = false;
+        writeSectionHeading(msg.content);
+      } else {
+        writeText(stripMarkdown(msg.content), { afterGap: 4 });
+      }
+    }
+    writeDivider();
+  }
+
+  // ── Case text ──
+  if (caseContent?.text) {
+    writeSectionHeading("Case Text");
+    const cleaned = cleanCaseText(caseContent.text).substring(0, 6000);
+    writeText(cleaned, { color: COLOR_BODY, afterGap: 3 });
+    if (caseContent.text.length > 6000) {
+      writeText(
+        `[ ... truncated — full text is ${caseContent.text.length.toLocaleString()} characters ]`,
+        { style: "italic", color: COLOR_MUTED, afterGap: 0 },
+      );
+    }
+  }
+
+  // ── Footer on every page ──
+  const total = doc.getNumberOfPages();
+  for (let p = 1; p <= total; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(...COLOR_RULE);
+    doc.setLineWidth(0.25);
+    doc.line(PAGE_MARGIN, pageH - FOOTER_HEIGHT, pageW - PAGE_MARGIN, pageH - FOOTER_HEIGHT);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...COLOR_MUTED);
+    doc.text(
+      "For informational purposes only. Does not constitute legal advice.",
+      PAGE_MARGIN,
+      pageH - 10,
+    );
+    doc.text(`Page ${p} of ${total}`, pageW - PAGE_MARGIN, pageH - 10, { align: "right" });
+  }
+
+  doc.save(`${title.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`);
+}

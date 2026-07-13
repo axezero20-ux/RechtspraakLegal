@@ -1,0 +1,335 @@
+import { useState, useRef, useEffect } from "react";
+import {
+  Loader2, Send, FileText, Sparkles, Download, ArrowLeft,
+  MessageSquare, ScrollText, AlertCircle,
+} from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import type { ApiConfig, CaseContent, ChatMessage } from "../types";
+import { getCaseContent, flexibleChat, summarizeCase } from "../api";
+import { exportToPDF } from "../pdfExport";
+
+interface Props {
+  ecli: string;
+  config: ApiConfig;
+  onBack: () => void;
+}
+
+type Tab = "summary" | "chat" | "text";
+
+export default function CaseViewer({ ecli, config, onBack }: Props) {
+  const [caseContent, setCaseContent] = useState<CaseContent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("summary");
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    loadCase();
+  }, [ecli]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  async function loadCase() {
+    setLoading(true);
+    setError(null);
+    try {
+      const content = await getCaseContent(ecli);
+      setCaseContent(content);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load case");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGenerateSummary() {
+    if (!caseContent || summaryLoading) return;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const sum = await summarizeCase(config, caseContent);
+      setSummary(sum);
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : "Failed to generate summary");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
+  async function handleSend() {
+    if (!input.trim() || !caseContent || chatLoading) return;
+    const userMessage: ChatMessage = { role: "user", content: input.trim(), timestamp: Date.now() };
+    setMessages((prev) => [...prev, userMessage]);
+    setInput("");
+    setChatLoading(true);
+    try {
+      const { response, fetchedECLIs } = await flexibleChat(
+        config,
+        [...messages, userMessage],
+        { ecli: caseContent.ecli, text: caseContent.text },
+      );
+      let displayResponse = response;
+      if (fetchedECLIs.length > 0) {
+        displayResponse = `*Fetched and analyzed ${fetchedECLIs.length} referenced case${fetchedECLIs.length > 1 ? "s" : ""}: ${fetchedECLIs.join(", ")}*\n\n${response}`;
+      }
+      setMessages((prev) => [...prev, { role: "assistant", content: displayResponse, timestamp: Date.now() }]);
+    } catch (err) {
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: `Error: ${err instanceof Error ? err.message : "AI request failed"}`,
+        timestamp: Date.now(),
+      }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  function handleExport() {
+    if (!caseContent) return;
+    const title = caseContent.metadata?.title || caseContent.ecli;
+    exportToPDF({
+      caseContent,
+      summary: summary || undefined,
+      messages: messages.length > 0 ? messages : undefined,
+      title,
+    });
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-3" />
+        <p className="text-sm text-slate-500">Loading case {ecli}...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center">
+        <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
+        <p className="text-sm text-red-600 mb-3">{error}</p>
+        <button onClick={onBack} className="text-sm text-blue-600 hover:underline">
+          Go back
+        </button>
+      </div>
+    );
+  }
+
+  if (!caseContent) return null;
+
+  const meta = caseContent.metadata;
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 pb-4 border-b border-slate-200">
+        <div className="flex-1 min-w-0">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-2 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </button>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-mono font-medium rounded">{caseContent.ecli}</span>
+          </div>
+          <h2 className="text-lg font-semibold text-slate-800 line-clamp-2">
+            {meta?.title || caseContent.ecli}
+          </h2>
+          <div className="flex flex-wrap gap-4 mt-2 text-xs text-slate-500">
+            {meta?.creator && <span>Court: {meta.creator}</span>}
+            {meta?.date && <span>Date: {meta.date}</span>}
+            {meta?.zaaknummer && <span>Case: {meta.zaaknummer}</span>}
+            {meta?.subject && <span>Subject: {meta.subject}</span>}
+          </div>
+        </div>
+        <button
+          onClick={handleExport}
+          className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition-all flex-shrink-0"
+        >
+          <Download className="w-4 h-4" />
+          Export PDF
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mt-4 border-b border-slate-200">
+        {[
+          { id: "summary" as Tab, label: "AI Summary", icon: Sparkles },
+          { id: "chat" as Tab, label: "Ask Questions", icon: MessageSquare },
+          { id: "text" as Tab, label: "Case Text", icon: ScrollText },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${
+              tab === t.id
+                ? "border-blue-500 text-blue-600"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            <t.icon className="w-4 h-4" />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto mt-4">
+        {tab === "summary" && (
+          <div className="space-y-4">
+            {summaryLoading ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-3" />
+                <p className="text-sm text-slate-500">AI is analyzing the case...</p>
+                <p className="text-xs text-slate-400 mt-1">This may take a few seconds</p>
+              </div>
+            ) : summary ? (
+              <div>
+                <div className="prose prose-sm prose-slate max-w-none prose-headings:text-slate-800 prose-p:text-slate-600 prose-li:text-slate-600">
+                  <ReactMarkdown>{summary}</ReactMarkdown>
+                </div>
+                <button
+                  onClick={handleGenerateSummary}
+                  className="mt-6 flex items-center gap-2 px-4 py-2 text-sm text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-slate-700 transition-all"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Regenerate Summary
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Sparkles className="w-12 h-12 text-blue-100 mb-4" />
+                <p className="text-base font-medium text-slate-700 mb-1">Generate an AI Summary</p>
+                <p className="text-sm text-slate-400 mb-6 max-w-xs">
+                  Let AI analyze this case and produce a structured summary of the key facts, arguments, and ruling.
+                </p>
+                {summaryError && (
+                  <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-lg mb-4 max-w-sm">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    <span>{summaryError}</span>
+                  </div>
+                )}
+                <button
+                  onClick={handleGenerateSummary}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 active:scale-95 transition-all shadow-sm"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Generate Summary
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "chat" && (
+          <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+              {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <MessageSquare className="w-10 h-10 text-slate-300 mb-2" strokeWidth={1} />
+                  <p className="text-sm text-slate-400">Ask anything — case analysis, comparisons, general legal questions</p>
+                  <div className="flex flex-wrap gap-2 mt-4 justify-center max-w-lg">
+                    {[
+                      "What is this case about?",
+                      "What was the court's decision?",
+                      "Compare this with ECLI:NL:RBDHA:2023:1234",
+                      "What are similar cases to this one?",
+                      "Explain the legal reasoning",
+                      "Draft a case note for this ruling",
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        onClick={() => setInput(suggestion)}
+                        className="px-3 py-1.5 bg-slate-100 text-slate-600 text-xs rounded-full hover:bg-slate-200 transition-colors"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {messages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] px-4 py-3 rounded-2xl ${
+                      msg.role === "user"
+                        ? "bg-blue-600 text-white rounded-br-md"
+                        : "bg-slate-100 text-slate-700 rounded-bl-md"
+                    }`}
+                  >
+                    {msg.role === "assistant" ? (
+                      <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1">
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="text-sm">{msg.content}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-slate-100 px-4 py-3 rounded-2xl rounded-bl-md">
+                    <Loader2 className="w-4 h-4 text-slate-500 animate-spin" />
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div className="flex gap-2 pt-3 border-t border-slate-200">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+placeholder="Ask anything — questions, comparisons (use ECLI:...), commands..."
+                disabled={chatLoading}
+                className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all disabled:opacity-50"
+              />
+              <button
+                onClick={handleSend}
+                disabled={chatLoading || !input.trim()}
+                className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {tab === "text" && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <FileText className="w-4 h-4" />
+              <span>Full case text ({caseContent.fullLength.toLocaleString()} characters)</span>
+            </div>
+            <div className="p-4 bg-slate-50 rounded-lg border border-slate-200 max-h-[60vh] overflow-y-auto">
+              <p className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed">
+                {caseContent.text}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
