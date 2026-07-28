@@ -9,6 +9,8 @@ import { analyzeCase } from "../api";
 interface Props {
   caseContent: CaseContent;
   config: ApiConfig;
+  analysis: CaseAnalysis | null;
+  onAnalysisChange: (a: CaseAnalysis | null) => void;
 }
 
 type Section = "principles" | "arguments" | "legislation" | "references" | "timeline";
@@ -21,8 +23,7 @@ const SECTIONS: { id: Section; label: string; icon: typeof Scale }[] = [
   { id: "timeline", label: "Timeline", icon: Calendar },
 ];
 
-export default function CaseAnalysisPanel({ caseContent, config }: Props) {
-  const [analysis, setAnalysis] = useState<CaseAnalysis | null>(null);
+export default function CaseAnalysisPanel({ caseContent, config, analysis, onAnalysisChange }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<Section>("principles");
@@ -32,7 +33,7 @@ export default function CaseAnalysisPanel({ caseContent, config }: Props) {
     setError(null);
     try {
       const result = await analyzeCase(config, caseContent);
-      setAnalysis(result);
+      onAnalysisChange(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {

@@ -1,10 +1,12 @@
 import jsPDF from "jspdf";
-import type { CaseComparison, CaseContent, ChatMessage } from "./types";
+import type { CaseAnalysis, CaseComparison, CaseContent, ChatMessage, PrecedentAnalysis } from "./types";
 
 interface ExportParams {
   caseContent?: CaseContent;
   summary?: string;
   messages?: ChatMessage[];
+  analysis?: CaseAnalysis;
+  precedents?: PrecedentAnalysis;
   title: string;
 }
 
@@ -61,7 +63,7 @@ function cleanCaseText(raw: string): string {
   return raw;
 }
 
-export function exportToPDF({ caseContent, summary, messages, title }: ExportParams) {
+export function exportToPDF({ caseContent, summary, messages, analysis, precedents, title }: ExportParams) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
   const pageW = doc.internal.pageSize.getWidth();
@@ -140,6 +142,92 @@ export function exportToPDF({ caseContent, summary, messages, title }: ExportPar
     y += 6;
   }
 
+  function writeBullet(text: string) {
+    const indent = 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(BODY_FONT_SIZE);
+    doc.setTextColor(...COLOR_BODY);
+    const lines = doc.splitTextToSize(text, contentW - indent) as string[];
+    const lh = mmPerLine(BODY_FONT_SIZE);
+    for (let i = 0; i < lines.length; i++) {
+      ensureSpace(lh);
+      if (i === 0) doc.text("\u2022", PAGE_MARGIN, y);
+      doc.text(lines[i], PAGE_MARGIN + indent, y);
+      y += lh;
+    }
+    y += 2;
+  }
+
+  function writeTable(headers: string[], rows: string[][], colWidths?: number[]) {
+    const colCount = headers.length;
+    const tableW = contentW;
+    const widths = colWidths || Array(colCount).fill(tableW / colCount);
+
+    const headerLh = mmPerLine(BODY_FONT_SIZE);
+    const rowLh = mmPerLine(BODY_FONT_SIZE);
+    const cellPad = 2;
+
+    // Header row
+    ensureSpace(headerLh + cellPad * 2 + 2);
+    doc.setFillColor(...COLOR_DARK);
+    doc.rect(PAGE_MARGIN, y, tableW, headerLh + cellPad * 2, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(BODY_FONT_SIZE);
+    doc.setTextColor(255, 255, 255);
+    let xh = PAGE_MARGIN + cellPad;
+    for (let c = 0; c < colCount; c++) {
+      const headerLines = doc.splitTextToSize(headers[c], widths[c] - cellPad * 2) as string[];
+      doc.text(headerLines[0] || "", xh, y + headerLh + cellPad - 1);
+      xh += widths[c];
+    }
+    y += headerLh + cellPad * 2;
+
+    // Data rows
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(BODY_FONT_SIZE);
+    doc.setTextColor(...COLOR_BODY);
+
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      // Calculate max lines across all cells in this row
+      let maxLines = 1;
+      for (let c = 0; c < colCount; c++) {
+        const cellLines = doc.splitTextToSize(row[c] || "", widths[c] - cellPad * 2) as string[];
+        if (cellLines.length > maxLines) maxLines = cellLines.length;
+      }
+      const rowHeight = maxLines * rowLh + cellPad * 2;
+
+      ensureSpace(rowHeight + 1);
+
+      // Alternating row background
+      if (r % 2 === 0) {
+        doc.setFillColor(245, 247, 250);
+        doc.rect(PAGE_MARGIN, y, tableW, rowHeight, "F");
+      }
+
+      // Cell borders
+      doc.setDrawColor(...COLOR_RULE);
+      doc.setLineWidth(0.2);
+      let xc = PAGE_MARGIN;
+      for (let c = 0; c < colCount; c++) {
+        doc.rect(xc, y, widths[c], rowHeight);
+        xc += widths[c];
+      }
+
+      // Cell text
+      let xCell = PAGE_MARGIN + cellPad;
+      for (let c = 0; c < colCount; c++) {
+        const cellLines = doc.splitTextToSize(row[c] || "", widths[c] - cellPad * 2) as string[];
+        for (let l = 0; l < cellLines.length; l++) {
+          doc.text(cellLines[l], xCell, y + cellPad + rowLh - 1 + l * rowLh);
+        }
+        xCell += widths[c];
+      }
+      y += rowHeight;
+    }
+    y += 4;
+  }
+
   function writeMetaRow(label: string, value: string) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(BODY_FONT_SIZE);
@@ -212,6 +300,94 @@ export function exportToPDF({ caseContent, summary, messages, title }: ExportPar
         writeText(stripMarkdown(msg.content), { afterGap: 4 });
       }
     }
+    writeDivider();
+  }
+
+  // ── AI Analysis ──
+  if (analysis) {
+    writeSectionHeading("Legal Analysis");
+
+    if (analysis.legalArea) {
+      writeText(`Legal Area: ${analysis.legalArea}`, { style: "bold", color: COLOR_DARK, afterGap: 3 });
+    }
+
+    if (analysis.legalPrinciples?.length > 0) {
+      writeText("Legal Principles", { size: SUBHEADING_FONT_SIZE, style: "bold", color: COLOR_DARK, afterGap: 2 });
+      for (const p of analysis.legalPrinciples) writeBullet(p);
+      y += 2;
+    }
+
+    if (analysis.keyArguments?.length > 0) {
+      writeText("Key Arguments", { size: SUBHEADING_FONT_SIZE, style: "bold", color: COLOR_DARK, afterGap: 2 });
+      writeTable(
+        ["Party", "Argument", "Outcome"],
+        analysis.keyArguments.map((a) => [a.party, a.argument, a.outcome]),
+        [contentW * 0.18, contentW * 0.52, contentW * 0.30],
+      );
+    }
+
+    if (analysis.citedLegislation?.length > 0) {
+      writeText("Cited Legislation", { size: SUBHEADING_FONT_SIZE, style: "bold", color: COLOR_DARK, afterGap: 2 });
+      writeTable(
+        ["Title", "Articles", "Relevance"],
+        analysis.citedLegislation.map((l) => [l.title, l.articles.join(", "), l.relevance]),
+        [contentW * 0.25, contentW * 0.25, contentW * 0.50],
+      );
+    }
+
+    if (analysis.referencedCases?.length > 0) {
+      writeText("Referenced Cases", { size: SUBHEADING_FONT_SIZE, style: "bold", color: COLOR_DARK, afterGap: 2 });
+      writeTable(
+        ["ECLI", "Title", "How Referenced"],
+        analysis.referencedCases.map((c) => [c.ecli, c.title, c.how]),
+        [contentW * 0.25, contentW * 0.35, contentW * 0.40],
+      );
+    }
+
+    if (analysis.timeline?.length > 0) {
+      writeText("Timeline", { size: SUBHEADING_FONT_SIZE, style: "bold", color: COLOR_DARK, afterGap: 2 });
+      writeTable(
+        ["Date", "Event"],
+        analysis.timeline.map((t) => [t.date, t.event]),
+        [contentW * 0.25, contentW * 0.75],
+      );
+    }
+
+    if (analysis.outcome) {
+      writeText("Outcome", { size: SUBHEADING_FONT_SIZE, style: "bold", color: COLOR_DARK, afterGap: 2 });
+      writeText(analysis.outcome, { afterGap: 3 });
+    }
+
+    if (analysis.significance) {
+      writeText("Significance", { size: SUBHEADING_FONT_SIZE, style: "bold", color: COLOR_DARK, afterGap: 2 });
+      writeText(analysis.significance, { afterGap: 4 });
+    }
+
+    writeDivider();
+  }
+
+  // ── Similar Precedents ──
+  if (precedents) {
+    writeSectionHeading("Similar Precedents");
+
+    if (precedents.precedentSummary) {
+      writeText(precedents.precedentSummary, { afterGap: 4 });
+    }
+
+    if (precedents.similarPrecedents?.length > 0) {
+      writeTable(
+        ["ECLI", "Title", "Similarity", "Reason", "Key Difference"],
+        precedents.similarPrecedents.map((p) => [
+          p.ecli,
+          p.title,
+          p.similarity,
+          p.reason,
+          p.keyDifference,
+        ]),
+        [contentW * 0.16, contentW * 0.20, contentW * 0.12, contentW * 0.26, contentW * 0.26],
+      );
+    }
+
     writeDivider();
   }
 

@@ -4,7 +4,7 @@ import {
   MessageSquare, ScrollText, AlertCircle, Scale, Link2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import type { ApiConfig, CaseContent, ChatMessage } from "../types";
+import type { ApiConfig, CaseContent, ChatMessage, CaseAnalysis, PrecedentAnalysis } from "../types";
 import { getCaseContent, flexibleChat, summarizeCase } from "../api";
 import { exportToPDF } from "../pdfExport";
 import CaseAnalysisPanel from "./CaseAnalysisPanel";
@@ -30,6 +30,8 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
+  const [analysis, setAnalysis] = useState<CaseAnalysis | null>(null);
+  const [precedents, setPrecedents] = useState<PrecedentAnalysis | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,6 +48,8 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
     setSummary(null);
     setSummaryError(null);
     setMessages([]);
+    setAnalysis(null);
+    setPrecedents(null);
     try {
       const content = await getCaseContent(ecli);
       setCaseContent(content);
@@ -105,6 +109,8 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
       caseContent,
       summary: summary || undefined,
       messages: messages.length > 0 ? messages : undefined,
+      analysis: analysis || undefined,
+      precedents: precedents || undefined,
       title,
     });
   }
@@ -243,11 +249,11 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
         </div>
 
         <div className={tab === "analysis" ? "block" : "hidden"}>
-          <CaseAnalysisPanel caseContent={caseContent} config={config} />
+          <CaseAnalysisPanel caseContent={caseContent} config={config} analysis={analysis} onAnalysisChange={setAnalysis} />
         </div>
 
         <div className={tab === "precedents" ? "block" : "hidden"}>
-          <SimilarPrecedentsPanel caseContent={caseContent} config={config} onCaseSelect={onCaseSelect} />
+          <SimilarPrecedentsPanel caseContent={caseContent} config={config} onCaseSelect={onCaseSelect} precedents={precedents} onPrecedentsChange={setPrecedents} />
         </div>
 
         <div className={tab === "chat" ? "flex flex-col h-full" : "hidden"}>

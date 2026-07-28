@@ -10,10 +10,11 @@ interface Props {
   caseContent: CaseContent;
   config: ApiConfig;
   onCaseSelect: (ecli: string) => void;
+  precedents: PrecedentAnalysis | null;
+  onPrecedentsChange: (p: PrecedentAnalysis | null) => void;
 }
 
-export default function SimilarPrecedentsPanel({ caseContent, config, onCaseSelect }: Props) {
-  const [precedents, setPrecedents] = useState<PrecedentAnalysis | null>(null);
+export default function SimilarPrecedentsPanel({ caseContent, config, onCaseSelect, precedents, onPrecedentsChange }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +42,7 @@ export default function SimilarPrecedentsPanel({ caseContent, config, onCaseSele
       });
 
       const result = await findSimilarPrecedents(config, caseContent, unique);
-      setPrecedents(result);
+      onPrecedentsChange(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to find precedents");
     } finally {
