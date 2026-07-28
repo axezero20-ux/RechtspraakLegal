@@ -43,6 +43,43 @@ function extractMetadataFromXML(xml: string): Record<string, string> {
 
 // ── Rechtspraak search ───────────────────────────────────────────────────────
 
+// Map of court ECLI codes to their full Dutch names (for display/filtering)
+const COURT_CODES: Record<string, string> = {
+  "HR": "Hoge Raad",
+  "GHAMS": "Gerechtshof Amsterdam",
+  "GHDHA": "Gerechtshof Den Haag",
+  "GHARL": "Gerechtshof Arnhem-Leeuwarden",
+  "GHSHE": "Gerechtshof 's-Hertogenbosch",
+  "RBAMS": "Rechtbank Amsterdam",
+  "RBDHA": "Rechtbank Den Haag",
+  "RBROT": "Rechtbank Rotterdam",
+  "RBMNE": "Rechtbank Midden-Nederland",
+  "RBLIM": "Rechtbank Limburg",
+  "RBGEL": "Rechtbank Gelderland",
+  "RBOVE": "Rechtbank Overijssel",
+  "RBNHO": "Rechtbank Noord-Holland",
+  "RBNNE": "Rechtbank Noord-Nederland",
+  "RBARN": "Rechtbank Arnhem",
+  "RBZWB": "Rechtbank Zeeland-West-Brabant",
+  "RBSGR": "Rechtbank 's-Gravenhage",
+  "RBLEE": "Rechtbank Leeuwarden",
+  "RVS": "Raad van State",
+  "CRVB": "Centrale Raad van Beroep",
+  "CBB": "College van Beroep voor het bedrijfsleven",
+};
+
+// Extract court code from ECLI (e.g. "ECLI:NL:HR:2024:123" -> "HR")
+function courtCodeFromEcli(ecli: string): string {
+  const parts = ecli.split(":");
+  return parts.length >= 3 ? parts[2] : "";
+}
+
+// Extract date from ECLI (e.g. "ECLI:NL:HR:2024:123" -> "2024")
+function yearFromEcli(ecli: string): string {
+  const parts = ecli.split(":");
+  return parts.length >= 4 ? parts[3] : "";
+}
+
 async function searchRechtspraak(params: {
   query?: string;
   from?: string;
@@ -54,25 +91,31 @@ async function searchRechtspraak(params: {
 }): Promise<unknown> {
   const searchUrl = new URL("https://data.rechtspraak.nl/uitspraken/zoeken");
 
+  // The Rechtspraak API only supports: max, from (offset), sort, date (exact),
+  // type (Uitspraak/Conclusie), and return. Court and subject filters are not
+  // natively supported, so we fetch a larger batch and filter server-side.
+
+  const needsCourtFilter = !!params.court;
+  const needsDateRangeFilter = !!(params.from || params.to);
+  const needsSubjectFilter = !!params.subject;
+  const needsTextFilter = !!params.query && params.query.trim().length > 0;
+
+  // When filtering server-side, fetch more results to have enough after filtering
+  const fetchMax = needsCourtFilter || needsDateRangeFilter || needsSubjectFilter || needsTextFilter
+    ? Math.min((params.max || 50) * 10, 1000)
+    : params.max || 50;
+
   const searchParams: string[][] = [];
-  searchParams.push(["max", String(params.max || 50)]);
+  searchParams.push(["max", String(fetchMax)]);
   searchParams.push(["from", "0"]);
   searchParams.push(["sort", "DESC"]);
 
   if (params.type) {
     searchParams.push(["type", params.type]);
   }
-  if (params.from) {
+  // If only a single exact date is provided (no range), use the API's date param
+  if (params.from && params.to && params.from === params.to) {
     searchParams.push(["date", params.from]);
-  }
-  if (params.to) {
-    searchParams.push(["date", params.to]);
-  }
-  if (params.court) {
-    searchParams.push(["creator", params.court]);
-  }
-  if (params.subject) {
-    searchParams.push(["subject", params.subject]);
   }
   searchParams.push(["return", "DOC"]);
 
@@ -88,6 +131,10 @@ async function searchRechtspraak(params: {
 
   const xml = await response.text();
 
+  // Extract total count from subtitle
+  const subtitleMatch = xml.match(/<subtitle[^>]*>Aantal gevonden ECLI's:\s*(\d+)<\/subtitle>/);
+  const totalAvailable = subtitleMatch ? parseInt(subtitleMatch[1], 10) : 0;
+
   const entries: unknown[] = [];
   const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
   let match;
@@ -100,9 +147,11 @@ async function searchRechtspraak(params: {
     const linkMatch = entryXml.match(/<link[^>]*href="([^"]*)"[^>]*>/);
 
     const ecli = idMatch ? idMatch[1].trim().replace(/^.*\//, "") : "";
+    const title = titleMatch ? titleMatch[1].trim() : "";
+
     entries.push({
       ecli,
-      title: titleMatch ? titleMatch[1].trim() : "",
+      title,
       updated: updatedMatch ? updatedMatch[1].trim() : "",
       summary: summaryMatch ? summaryMatch[1].trim() : "",
       link: linkMatch ? linkMatch[1] : "",
@@ -110,7 +159,70 @@ async function searchRechtspraak(params: {
     });
   }
 
-  return { results: entries, total: entries.length };
+  // ── Server-side filtering (for params the API doesn't natively support) ──
+
+  let filtered = entries;
+
+  // Court filter: match by ECLI court code prefix
+  if (needsCourtFilter) {
+    const courtCode = params.court!;
+    filtered = filtered.filter((e: any) => {
+      const code = courtCodeFromEcli(e.ecli);
+      return code === courtCode;
+    });
+  }
+
+  // Date range filter: parse date from the title or ECLI year
+  if (needsDateRangeFilter) {
+    const fromDate = params.from ? new Date(params.from) : null;
+    const toDate = params.to ? new Date(params.to) : null;
+    filtered = filtered.filter((e: any) => {
+      // Try to extract date from title (format: "..., DD-MM-YYYY, ...")
+      const dateMatch = e.title.match(/(\d{2})-(\d{2})-(\d{4})/);
+      let caseDate: Date | null = null;
+      if (dateMatch) {
+        const [, day, month, year] = dateMatch;
+        caseDate = new Date(`${year}-${month}-${day}`);
+      } else {
+        // Fall back to ECLI year
+        const year = yearFromEcli(e.ecli);
+        if (year) caseDate = new Date(`${year}-01-01`);
+      }
+      if (!caseDate) return true; // keep if we can't parse
+      if (fromDate && caseDate < fromDate) return false;
+      if (toDate && caseDate > new Date(toDate.getTime() + 86400000)) return false; // inclusive end date
+      return true;
+    });
+  }
+
+  // Subject filter: match by keyword in title or summary
+  if (needsSubjectFilter) {
+    const subject = params.subject!.toLowerCase();
+    filtered = filtered.filter((e: any) => {
+      const text = `${e.title} ${e.summary}`.toLowerCase();
+      return text.includes(subject);
+    });
+  }
+
+  // Text query filter: match by keyword in title or summary
+  if (needsTextFilter) {
+    const query = params.query!.trim().toLowerCase();
+    filtered = filtered.filter((e: any) => {
+      const text = `${e.title} ${e.summary}`.toLowerCase();
+      return text.includes(query);
+    });
+  }
+
+  // Trim to requested max
+  const maxResults = params.max || 50;
+  const trimmed = filtered.slice(0, maxResults);
+
+  return {
+    results: trimmed,
+    total: trimmed.length,
+    totalAvailable,
+    filteredFrom: entries.length,
+  };
 }
 
 // ── Get case content by ECLI ─────────────────────────────────────────────────

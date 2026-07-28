@@ -9,17 +9,23 @@ interface Props {
 
 const COURT_OPTIONS = [
   { value: "", label: "All Courts" },
-  { value: "Hoge Raad", label: "Hoge Raad" },
-  { value: "Gerechtshof Amsterdam", label: "Gerechtshof Amsterdam" },
-  { value: "Gerechtshof Den Haag", label: "Gerechtshof Den Haag" },
-  { value: "Gerechtshof Arnhem-Leeuwarden", label: "Gerechtshof Arnhem-Leeuwarden" },
-  { value: "Rechtbank Amsterdam", label: "Rechtbank Amsterdam" },
-  { value: "Rechtbank Den Haag", label: "Rechtbank Den Haag" },
-  { value: "Rechtbank Rotterdam", label: "Rechtbank Rotterdam" },
-  { value: "Rechtbank Midden-Nederland", label: "Rechtbank Midden-Nederland" },
-  { value: "Centrale Raad van Beroep", label: "Centrale Raad van Beroep" },
-  { value: "Raad van State", label: "Raad van State" },
-  { value: "College van Beroep voor het bedrijfsleven", label: "College van Beroep" },
+  { value: "HR", label: "Hoge Raad" },
+  { value: "GHAMS", label: "Gerechtshof Amsterdam" },
+  { value: "GHDHA", label: "Gerechtshof Den Haag" },
+  { value: "GHARL", label: "Gerechtshof Arnhem-Leeuwarden" },
+  { value: "GHSHE", label: "Gerechtshof 's-Hertogenbosch" },
+  { value: "RBAMS", label: "Rechtbank Amsterdam" },
+  { value: "RBDHA", label: "Rechtbank Den Haag" },
+  { value: "RBROT", label: "Rechtbank Rotterdam" },
+  { value: "RBMNE", label: "Rechtbank Midden-Nederland" },
+  { value: "RBLIM", label: "Rechtbank Limburg" },
+  { value: "RBGEL", label: "Rechtbank Gelderland" },
+  { value: "RBOVE", label: "Rechtbank Overijssel" },
+  { value: "RBNHO", label: "Rechtbank Noord-Holland" },
+  { value: "RBNNE", label: "Rechtbank Noord-Nederland" },
+  { value: "RVS", label: "Raad van State" },
+  { value: "CRVB", label: "Centrale Raad van Beroep" },
+  { value: "CBB", label: "College van Beroep voor het bedrijfsleven" },
 ];
 
 const SUBJECT_OPTIONS = [
@@ -64,6 +70,7 @@ export default function SearchPanel({ onCaseSelected }: Props) {
     setError(null);
     try {
       const data = await searchRechtspraak({
+        query: query || undefined,
         from: fromDate || undefined,
         to: toDate || undefined,
         type: caseType || undefined,
@@ -73,7 +80,7 @@ export default function SearchPanel({ onCaseSelected }: Props) {
       });
       setResults(data.results);
       if (data.results.length === 0) {
-        setError("No results found. Try adjusting your search criteria.");
+        setError("No results found with the current filters. The API returned results but none matched your court/date/subject criteria. Try broadening your filters.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Search failed");
