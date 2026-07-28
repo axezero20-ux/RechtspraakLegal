@@ -63,6 +63,148 @@ function cleanCaseText(raw: string): string {
   return raw;
 }
 
+interface MarkdownTable {
+  headers: string[];
+  rows: string[][];
+}
+
+function parseMarkdownTable(lines: string[], startIdx: number): { table: MarkdownTable | null; nextIdx: number } {
+  // Header line
+  const headerLine = lines[startIdx];
+  // Separator line (must contain only |, -, :, spaces)
+  const separatorLine = lines[startIdx + 1];
+  if (!separatorLine || !/^\s*\|?[\s:|-]+$/.test(separatorLine) || !separatorLine.includes("-")) {
+    return { table: null, nextIdx: startIdx };
+  }
+
+  const splitRow = (line: string) =>
+    line
+      .replace(/^\s*\|/, "")
+      .replace(/\|\s*$/, "")
+      .split("|")
+      .map((c) => c.trim());
+
+  const headers = splitRow(headerLine);
+  const rows: string[][] = [];
+  let idx = startIdx + 2;
+  while (idx < lines.length && lines[idx].includes("|") && lines[idx].trim() !== "") {
+    rows.push(splitRow(lines[idx]));
+    idx++;
+  }
+  return { table: { headers, rows }, nextIdx: idx };
+}
+
+function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/\*(.+?)\*/g, "$1")
+    .replace(/`(.+?)`/g, "$1")
+    .replace(/\[(.+?)\]\(.+?\)/g, "$1");
+}
+
+function renderMarkdownContent(
+  content: string,
+  helpers: {
+    writeText: (text: string, opts?: {
+      size?: number;
+      style?: "normal" | "bold" | "italic";
+      color?: [number, number, number];
+      afterGap?: number;
+    }) => void;
+    writeTable: (headers: string[], rows: string[][], colWidths?: number[]) => void;
+    writeBullet: (text: string) => void;
+    writeDivider: () => void;
+    SUBHEADING_FONT_SIZE: number;
+    COLOR_DARK: [number, number, number];
+    COLOR_BODY: [number, number, number];
+    COLOR_MUTED: [number, number, number];
+    contentW: number;
+  },
+) {
+  const lines = content.split("\n");
+  let i = 0;
+  let inList = false;
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Skip empty lines
+    if (trimmed === "") {
+      inList = false;
+      i++;
+      continue;
+    }
+
+    // Heading
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const text = stripInlineMarkdown(headingMatch[2]);
+      if (level === 1) {
+        helpers.writeText(text, {
+          size: 15,
+          style: "bold",
+          color: helpers.COLOR_DARK,
+          afterGap: 4,
+        });
+      } else if (level === 2) {
+        helpers.writeText(text, {
+          size: helpers.SUBHEADING_FONT_SIZE,
+          style: "bold",
+          color: helpers.COLOR_DARK,
+          afterGap: 3,
+        });
+      } else {
+        helpers.writeText(text, {
+          size: helpers.SUBHEADING_FONT_SIZE - 1,
+          style: "bold",
+          color: helpers.COLOR_DARK,
+          afterGap: 2,
+        });
+      }
+      i++;
+      continue;
+    }
+
+    // Markdown table: header line followed by separator line containing | and -
+    if (trimmed.includes("|") && i + 1 < lines.length && /^\s*\|?[\s:|-]+$/.test(lines[i + 1]) && lines[i + 1].includes("-")) {
+      const { table, nextIdx } = parseMarkdownTable(lines, i);
+      if (table && table.headers.length > 0) {
+        const colCount = table.headers.length;
+        const widths = Array(colCount).fill(helpers.contentW / colCount);
+        helpers.writeTable(
+          table.headers.map((h) => stripInlineMarkdown(h)),
+          table.rows.map((r) => r.map((c) => stripInlineMarkdown(c))),
+          widths,
+        );
+        i = nextIdx;
+        continue;
+      }
+    }
+
+    // Bullet list item
+    if (/^[-*+]\s+/.test(trimmed)) {
+      inList = true;
+      helpers.writeBullet(stripInlineMarkdown(trimmed.replace(/^[-*+]\s+/, "")));
+      i++;
+      continue;
+    }
+
+    // Numbered list item
+    if (/^\d+\.\s+/.test(trimmed)) {
+      inList = true;
+      helpers.writeText(stripInlineMarkdown(trimmed), { afterGap: 2 });
+      i++;
+      continue;
+    }
+
+    // Regular paragraph
+    inList = false;
+    helpers.writeText(stripInlineMarkdown(trimmed), { afterGap: 3 });
+    i++;
+  }
+}
+
 export function exportToPDF({ caseContent, summary, messages, analysis, precedents, title }: ExportParams) {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
@@ -297,7 +439,18 @@ export function exportToPDF({ caseContent, summary, messages, analysis, preceden
         first = false;
         writeSectionHeading(msg.content);
       } else {
-        writeText(stripMarkdown(msg.content), { afterGap: 4 });
+        renderMarkdownContent(msg.content, {
+          writeText,
+          writeTable,
+          writeBullet,
+          writeDivider,
+          SUBHEADING_FONT_SIZE,
+          COLOR_DARK,
+          COLOR_BODY,
+          COLOR_MUTED,
+          contentW,
+        });
+        y += 2;
       }
     }
     writeDivider();

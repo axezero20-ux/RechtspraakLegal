@@ -627,7 +627,11 @@ Deno.serve(async (req: Request) => {
           contextBlock += `=== REFERENCED CASE: ${c.ecli} ===\n${c.text}\n\n`;
         }
 
-        const systemPrompt = `You are a flexible legal assistant specializing in Dutch law (Rechtspraak). You have access to the full text of court cases provided below. You can answer any question — case analysis, legal reasoning, comparisons between cases, general legal questions, drafting tasks, and more. Do not restrict yourself to only the current case; if the user references or compares other cases, use the provided context. If the user asks about a case that is not in the context, say so and answer from your general knowledge. Respond in the same language as the user's question, defaulting to English.\n\n${contextBlock}`;
+        const systemPrompt = `You are a flexible legal assistant specializing in Dutch law (Rechtspraak). You have access to the full text of court cases provided below. You can answer any question — case analysis, legal reasoning, comparisons between cases, general legal questions, drafting tasks, and more. Do not restrict yourself to only the current case; if the user references or compares other cases, use the provided context. If the user asks about a case that is not in the context, say so and answer from your general knowledge. Respond in the same language as the user's question, defaulting to English.
+
+IMPORTANT FORMATTING RULE: Every response MUST begin with a top-level heading (using a single #) that summarizes the answer's topic, followed by the body of your answer. When presenting structured or comparative information, use GitHub-flavored markdown tables. Use tables for comparisons, lists of items with multiple attributes, timelines, or any data that fits a row/column structure. Use bullet lists only when a single-column list is more appropriate than a table.
+
+${contextBlock}`;
 
         const result = await callAI({
           provider,

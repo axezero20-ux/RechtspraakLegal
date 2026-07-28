@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Loader2, Send, FileText, Sparkles, Download, ArrowLeft,
-  MessageSquare, ScrollText, AlertCircle, Scale, Link2,
+  MessageSquare, ScrollText, AlertCircle, Scale, Link2, Trash2, X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { ApiConfig, CaseContent, ChatMessage, CaseAnalysis, PrecedentAnalysis } from "../types";
 import { getCaseContent, flexibleChat, summarizeCase } from "../api";
 import { exportToPDF } from "../pdfExport";
@@ -32,6 +33,7 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
   const [chatLoading, setChatLoading] = useState(false);
   const [analysis, setAnalysis] = useState<CaseAnalysis | null>(null);
   const [precedents, setPrecedents] = useState<PrecedentAnalysis | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -291,8 +293,8 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
                       : "bg-slate-100 text-slate-700 rounded-bl-md"
                   }`}>
                     {msg.role === "assistant" ? (
-                      <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-table:my-2 prose-th:px-3 prose-th:py-1.5 prose-th:text-xs prose-th:font-semibold prose-th:text-slate-700 prose-th:bg-slate-200 prose-th:border prose-th:border-slate-300 prose-td:px-3 prose-td:py-1.5 prose-td:text-xs prose-td:text-slate-600 prose-td:border prose-td:border-slate-200 prose-tr:border-slate-200">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                       </div>
                     ) : (
                       <p className="text-sm">{msg.content}</p>
@@ -322,6 +324,16 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
                 disabled={chatLoading}
                 className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all disabled:opacity-50"
               />
+              {messages.length > 0 && (
+                <button
+                  onClick={() => setShowClearConfirm(true)}
+                  disabled={chatLoading}
+                  title="Clear conversation"
+                  className="flex items-center justify-center w-10 h-10 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
               <button
                 onClick={handleSend}
                 disabled={chatLoading || !input.trim()}
@@ -346,6 +358,44 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
           </div>
         </div>
       </div>
+
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <h3 className="text-base font-semibold text-slate-800">Clear conversation?</h3>
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-5 py-5">
+              <p className="text-sm text-slate-600">
+                This will permanently delete all questions and answers in this conversation. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3 px-5 py-4 bg-slate-50 border-t border-slate-100">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="flex-1 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:bg-slate-50 transition-all"
+              >
+                No, keep it
+              </button>
+              <button
+                onClick={() => {
+                  setMessages([]);
+                  setShowClearConfirm(false);
+                }}
+                className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-all"
+              >
+                Yes, clear all
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
