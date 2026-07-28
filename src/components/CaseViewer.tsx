@@ -196,7 +196,7 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto mt-4">
-        {tab === "summary" && (
+        <div className={tab === "summary" ? "block" : "hidden"}>
           <div className="space-y-4">
             {summaryLoading ? (
               <div className="flex flex-col items-center justify-center py-16">
@@ -240,18 +240,17 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
               </div>
             )}
           </div>
-        )}
+        </div>
 
-        {tab === "analysis" && (
+        <div className={tab === "analysis" ? "block" : "hidden"}>
           <CaseAnalysisPanel caseContent={caseContent} config={config} />
-        )}
+        </div>
 
-        {tab === "precedents" && (
+        <div className={tab === "precedents" ? "block" : "hidden"}>
           <SimilarPrecedentsPanel caseContent={caseContent} config={config} onCaseSelect={onCaseSelect} />
-        )}
+        </div>
 
-        {tab === "chat" && (
-          <div className="flex flex-col h-full">
+        <div className={tab === "chat" ? "flex flex-col h-full" : "hidden"}>
             <div className="flex-1 overflow-y-auto space-y-4 pb-4">
               {messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -325,10 +324,9 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
                 <Send className="w-4 h-4" />
               </button>
             </div>
-          </div>
-        )}
+        </div>
 
-        {tab === "text" && (
+        <div className={tab === "text" ? "block" : "hidden"}>
           <div className="space-y-3">
             <div className="flex items-center gap-2 text-sm text-slate-500">
               <FileText className="w-4 h-4" />
@@ -340,7 +338,7 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
               </p>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
