@@ -1,4 +1,12 @@
-import type { ApiConfig, CaseContent, ChatMessage } from "./types";
+import type {
+  ApiConfig,
+  CaseAnalysis,
+  CaseComparison,
+  CaseContent,
+  ChatMessage,
+  PrecedentAnalysis,
+  SearchResult,
+} from "./types";
 
 const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rechtspraak-ai`;
 const HEADERS = {
@@ -13,7 +21,8 @@ export async function searchRechtspraak(params: {
   max?: number;
   type?: string;
   court?: string;
-}): Promise<{ results: import("./types").SearchResult[]; total: number }> {
+  subject?: string;
+}): Promise<{ results: SearchResult[]; total: number }> {
   const response = await fetch(EDGE_FUNCTION_URL, {
     method: "POST",
     headers: HEADERS,
@@ -37,37 +46,6 @@ export async function getCaseContent(ecli: string): Promise<CaseContent> {
     throw new Error(err.error || `Failed to fetch case (${response.status})`);
   }
   return response.json();
-}
-
-export async function chatWithAI(
-  config: ApiConfig,
-  messages: ChatMessage[],
-  caseContext?: { ecli: string; text: string },
-): Promise<string> {
-  const systemPrompt = caseContext
-    ? `You are a legal assistant specializing in Dutch law (Rechtspraak). The user is asking questions about a specific court case with ECLI: ${caseContext.ecli}. Here is the case text:\n\n${caseContext.text.substring(0, 60000)}\n\nAnswer questions based on this case. If the question is outside the scope of this case, say so. Respond in the same language as the user's question, defaulting to English.`
-    : "You are a legal assistant specializing in Dutch law (Rechtspraak). Respond in the same language as the user's question, defaulting to English.";
-
-  const apiMessages = messages.map((m) => ({ role: m.role, content: m.content }));
-
-  const response = await fetch(EDGE_FUNCTION_URL, {
-    method: "POST",
-    headers: HEADERS,
-    body: JSON.stringify({
-      action: "chat",
-      provider: config.provider,
-      apiKey: config.apiKey,
-      model: config.model,
-      messages: apiMessages,
-      systemPrompt,
-    }),
-  });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: "AI request failed" }));
-    throw new Error(err.error || `AI request failed (${response.status})`);
-  }
-  const data = await response.json();
-  return data.response;
 }
 
 export async function flexibleChat(
@@ -120,4 +98,85 @@ export async function summarizeCase(
   }
   const data = await response.json();
   return data.response;
+}
+
+// ── Stage 2: Legal Analysis API ──────────────────────────────────────────────
+
+export async function analyzeCase(
+  config: ApiConfig,
+  caseContent: CaseContent,
+): Promise<CaseAnalysis> {
+  const response = await fetch(EDGE_FUNCTION_URL, {
+    method: "POST",
+    headers: HEADERS,
+    body: JSON.stringify({
+      action: "analyze",
+      provider: config.provider,
+      apiKey: config.apiKey,
+      model: config.model,
+      caseText: caseContent.text,
+      ecli: caseContent.ecli,
+      metadata: caseContent.metadata,
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: "Analysis failed" }));
+    throw new Error(err.error || `Analysis failed (${response.status})`);
+  }
+  const data = await response.json();
+  return data.analysis as CaseAnalysis;
+}
+
+export async function compareCases(
+  config: ApiConfig,
+  cases: { ecli: string; text: string; metadata: Record<string, string> }[],
+): Promise<CaseComparison> {
+  const response = await fetch(EDGE_FUNCTION_URL, {
+    method: "POST",
+    headers: HEADERS,
+    body: JSON.stringify({
+      action: "compareCases",
+      provider: config.provider,
+      apiKey: config.apiKey,
+      model: config.model,
+      cases,
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: "Comparison failed" }));
+    throw new Error(err.error || `Comparison failed (${response.status})`);
+  }
+  const data = await response.json();
+  return data.comparison as CaseComparison;
+}
+
+export async function findSimilarPrecedents(
+  config: ApiConfig,
+  caseContent: CaseContent,
+  searchResults: SearchResult[],
+): Promise<PrecedentAnalysis> {
+  const response = await fetch(EDGE_FUNCTION_URL, {
+    method: "POST",
+    headers: HEADERS,
+    body: JSON.stringify({
+      action: "findSimilar",
+      provider: config.provider,
+      apiKey: config.apiKey,
+      model: config.model,
+      caseText: caseContent.text,
+      ecli: caseContent.ecli,
+      metadata: caseContent.metadata,
+      searchResults: searchResults.map((r) => ({
+        ecli: r.ecli,
+        title: r.title,
+        summary: r.summary,
+      })),
+    }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: "Precedent search failed" }));
+    throw new Error(err.error || `Precedent search failed (${response.status})`);
+  }
+  const data = await response.json();
+  return data.precedents as PrecedentAnalysis;
 }

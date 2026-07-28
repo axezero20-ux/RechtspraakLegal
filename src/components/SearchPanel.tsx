@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, Calendar, Filter, Loader2, FileText, ChevronRight } from "lucide-react";
+import { Search, Calendar, Filter, Loader2, FileText, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import type { SearchResult } from "../types";
 import { searchRechtspraak } from "../api";
 
@@ -7,15 +7,56 @@ interface Props {
   onCaseSelected: (ecli: string) => void;
 }
 
+const COURT_OPTIONS = [
+  { value: "", label: "All Courts" },
+  { value: "Hoge Raad", label: "Hoge Raad" },
+  { value: "Gerechtshof Amsterdam", label: "Gerechtshof Amsterdam" },
+  { value: "Gerechtshof Den Haag", label: "Gerechtshof Den Haag" },
+  { value: "Gerechtshof Arnhem-Leeuwarden", label: "Gerechtshof Arnhem-Leeuwarden" },
+  { value: "Rechtbank Amsterdam", label: "Rechtbank Amsterdam" },
+  { value: "Rechtbank Den Haag", label: "Rechtbank Den Haag" },
+  { value: "Rechtbank Rotterdam", label: "Rechtbank Rotterdam" },
+  { value: "Rechtbank Midden-Nederland", label: "Rechtbank Midden-Nederland" },
+  { value: "Centrale Raad van Beroep", label: "Centrale Raad van Beroep" },
+  { value: "Raad van State", label: "Raad van State" },
+  { value: "College van Beroep voor het bedrijfsleven", label: "College van Beroep" },
+];
+
+const SUBJECT_OPTIONS = [
+  { value: "", label: "All Subjects" },
+  { value: "Civiel", label: "Civiel / Civil" },
+  { value: "Strafrecht", label: "Strafrecht / Criminal" },
+  { value: "Bestuursrecht", label: "Bestuursrecht / Administrative" },
+  { value: "Arbeidsrecht", label: "Arbeidsrecht / Labor" },
+  { value: "Familierecht", label: "Familierecht / Family" },
+  { value: "Insolventierecht", label: "Insolventierecht" },
+  { value: "Belastingrecht", label: "Belastingrecht / Tax" },
+  { value: "Sociale zekerheid", label: "Sociale zekerheid" },
+  { value: "Vreemdelingenrecht", label: "Vreemdelingenrecht" },
+];
+
 export default function SearchPanel({ onCaseSelected }: Props) {
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [caseType, setCaseType] = useState("");
+  const [court, setCourt] = useState("");
+  const [subject, setSubject] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [activeFilterCount, setActiveFilterCount] = useState(0);
+
+  function updateFilterCount() {
+    let count = 0;
+    if (fromDate) count++;
+    if (toDate) count++;
+    if (caseType) count++;
+    if (court) count++;
+    if (subject) count++;
+    setActiveFilterCount(count);
+  }
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -26,6 +67,8 @@ export default function SearchPanel({ onCaseSelected }: Props) {
         from: fromDate || undefined,
         to: toDate || undefined,
         type: caseType || undefined,
+        court: court || undefined,
+        subject: subject || undefined,
         max: 50,
       });
       setResults(data.results);
@@ -37,6 +80,15 @@ export default function SearchPanel({ onCaseSelected }: Props) {
     } finally {
       setLoading(false);
     }
+  }
+
+  function clearFilters() {
+    setFromDate("");
+    setToDate("");
+    setCaseType("");
+    setCourt("");
+    setSubject("");
+    setActiveFilterCount(0);
   }
 
   return (
@@ -57,14 +109,19 @@ export default function SearchPanel({ onCaseSelected }: Props) {
           <button
             type="button"
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
-              showFilters
+            className={`relative flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-sm font-medium transition-all ${
+              showFilters || activeFilterCount > 0
                 ? "bg-blue-50 border-blue-300 text-blue-600"
                 : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
             }`}
           >
-            <Filter className="w-4 h-4" />
+            <SlidersHorizontal className="w-4 h-4" />
             Filters
+            {activeFilterCount > 0 && (
+              <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] rounded-full">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
           <button
             type="submit"
@@ -77,43 +134,85 @@ export default function SearchPanel({ onCaseSelected }: Props) {
         </div>
 
         {showFilters && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">From Date</label>
-              <div className="relative">
-                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="w-full pl-8 pr-2 py-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
-                />
+          <div className="space-y-3 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            {/* Date range */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">From Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => { setFromDate(e.target.value); updateFilterCount(); }}
+                    className="w-full pl-8 pr-2 py-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">To Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => { setToDate(e.target.value); updateFilterCount(); }}
+                    className="w-full pl-8 pr-2 py-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">To Date</label>
-              <div className="relative">
-                <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                <input
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="w-full pl-8 pr-2 py-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
-                />
+
+            {/* Type, Court, Subject */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Case Type</label>
+                <select
+                  value={caseType}
+                  onChange={(e) => { setCaseType(e.target.value); updateFilterCount(); }}
+                  className="w-full px-2 py-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  <option value="">All</option>
+                  <option value="Uitspraak">Uitspraak (Judgment)</option>
+                  <option value="Conclusie">Conclusie (Conclusion)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Court</label>
+                <select
+                  value={court}
+                  onChange={(e) => { setCourt(e.target.value); updateFilterCount(); }}
+                  className="w-full px-2 py-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  {COURT_OPTIONS.map((c) => (
+                    <option key={c.value} value={c.value}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1">Subject Area</label>
+                <select
+                  value={subject}
+                  onChange={(e) => { setSubject(e.target.value); updateFilterCount(); }}
+                  className="w-full px-2 py-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
+                >
+                  {SUBJECT_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
-              <select
-                value={caseType}
-                onChange={(e) => setCaseType(e.target.value)}
-                className="w-full px-2 py-2 text-sm bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-400"
+
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-500 transition-colors"
               >
-                <option value="">All</option>
-                <option value="Uitspraak">Uitspraak</option>
-                <option value="Conclusie">Conclusie</option>
-              </select>
-            </div>
+                <X className="w-3 h-3" />
+                Clear all filters
+              </button>
+            )}
           </div>
         )}
       </form>
@@ -155,7 +254,7 @@ export default function SearchPanel({ onCaseSelected }: Props) {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Search className="w-12 h-12 text-slate-300 mb-3" strokeWidth={1} />
             <p className="text-sm text-slate-400">Search for Dutch court cases on Rechtspraak.nl</p>
-            <p className="text-xs text-slate-400 mt-1">Use filters to narrow by date or type</p>
+            <p className="text-xs text-slate-400 mt-1">Use filters to narrow by date, court, subject, or type</p>
           </div>
         )}
       </div>

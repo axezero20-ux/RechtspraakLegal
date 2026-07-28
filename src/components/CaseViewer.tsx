@@ -1,22 +1,25 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Loader2, Send, FileText, Sparkles, Download, ArrowLeft,
-  MessageSquare, ScrollText, AlertCircle,
+  MessageSquare, ScrollText, AlertCircle, Scale, Link2,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { ApiConfig, CaseContent, ChatMessage } from "../types";
 import { getCaseContent, flexibleChat, summarizeCase } from "../api";
 import { exportToPDF } from "../pdfExport";
+import CaseAnalysisPanel from "./CaseAnalysisPanel";
+import SimilarPrecedentsPanel from "./SimilarPrecedentsPanel";
 
 interface Props {
   ecli: string;
   config: ApiConfig;
   onBack: () => void;
+  onCaseSelect: (ecli: string) => void;
 }
 
-type Tab = "summary" | "chat" | "text";
+type Tab = "summary" | "analysis" | "precedents" | "chat" | "text";
 
-export default function CaseViewer({ ecli, config, onBack }: Props) {
+export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props) {
   const [caseContent, setCaseContent] = useState<CaseContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +43,9 @@ export default function CaseViewer({ ecli, config, onBack }: Props) {
   async function loadCase() {
     setLoading(true);
     setError(null);
+    setSummary(null);
+    setSummaryError(null);
+    setMessages([]);
     try {
       const content = await getCaseContent(ecli);
       setCaseContent(content);
@@ -128,6 +134,14 @@ export default function CaseViewer({ ecli, config, onBack }: Props) {
 
   const meta = caseContent.metadata;
 
+  const tabs = [
+    { id: "summary" as Tab, label: "AI Summary", icon: Sparkles },
+    { id: "analysis" as Tab, label: "Analysis", icon: Scale },
+    { id: "precedents" as Tab, label: "Precedents", icon: Link2 },
+    { id: "chat" as Tab, label: "Ask Questions", icon: MessageSquare },
+    { id: "text" as Tab, label: "Case Text", icon: ScrollText },
+  ];
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -163,16 +177,12 @@ export default function CaseViewer({ ecli, config, onBack }: Props) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mt-4 border-b border-slate-200">
-        {[
-          { id: "summary" as Tab, label: "AI Summary", icon: Sparkles },
-          { id: "chat" as Tab, label: "Ask Questions", icon: MessageSquare },
-          { id: "text" as Tab, label: "Case Text", icon: ScrollText },
-        ].map((t) => (
+      <div className="flex gap-1 mt-4 border-b border-slate-200 overflow-x-auto">
+        {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-all ${
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
               tab === t.id
                 ? "border-blue-500 text-blue-600"
                 : "border-transparent text-slate-500 hover:text-slate-700"
@@ -232,6 +242,14 @@ export default function CaseViewer({ ecli, config, onBack }: Props) {
           </div>
         )}
 
+        {tab === "analysis" && (
+          <CaseAnalysisPanel caseContent={caseContent} config={config} />
+        )}
+
+        {tab === "precedents" && (
+          <SimilarPrecedentsPanel caseContent={caseContent} config={config} onCaseSelect={onCaseSelect} />
+        )}
+
         {tab === "chat" && (
           <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto space-y-4 pb-4">
@@ -261,17 +279,12 @@ export default function CaseViewer({ ecli, config, onBack }: Props) {
               )}
 
               {messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[85%] px-4 py-3 rounded-2xl ${
-                      msg.role === "user"
-                        ? "bg-blue-600 text-white rounded-br-md"
-                        : "bg-slate-100 text-slate-700 rounded-bl-md"
-                    }`}
-                  >
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] px-4 py-3 rounded-2xl ${
+                    msg.role === "user"
+                      ? "bg-blue-600 text-white rounded-br-md"
+                      : "bg-slate-100 text-slate-700 rounded-bl-md"
+                  }`}>
                     {msg.role === "assistant" ? (
                       <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1">
                         <ReactMarkdown>{msg.content}</ReactMarkdown>
@@ -294,14 +307,13 @@ export default function CaseViewer({ ecli, config, onBack }: Props) {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
             <div className="flex gap-2 pt-3 border-t border-slate-200">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
-placeholder="Ask anything — questions, comparisons (use ECLI:...), commands..."
+                placeholder="Ask anything — questions, comparisons (use ECLI:...), commands..."
                 disabled={chatLoading}
                 className="flex-1 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all disabled:opacity-50"
               />

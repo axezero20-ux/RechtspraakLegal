@@ -1,14 +1,15 @@
 import { useState } from "react";
 import {
-  Scale, Search, FileText, Upload, Settings, Sparkles,
+  Scale, Search, FileText, Upload, Settings, Sparkles, GitCompare,
 } from "lucide-react";
 import type { ApiConfig, CaseContent } from "../types";
 import SearchPanel from "./SearchPanel";
 import EcliPanel from "./EcliPanel";
 import PdfUploadPanel from "./PdfUploadPanel";
 import CaseViewer from "./CaseViewer";
+import CaseComparisonPanel from "./CaseComparisonPanel";
 
-type View = "search" | "ecli" | "upload";
+type View = "search" | "ecli" | "upload" | "compare";
 type Screen = "main" | "case";
 
 interface Props {
@@ -39,6 +40,7 @@ export default function Dashboard({ config, onSettings }: Props) {
   const navItems = [
     { id: "search" as View, label: "Search", icon: Search },
     { id: "ecli" as View, label: "ECLI Code", icon: FileText },
+    { id: "compare" as View, label: "Compare Cases", icon: GitCompare },
     { id: "upload" as View, label: "Upload Document", icon: Upload },
   ];
 
@@ -77,7 +79,7 @@ export default function Dashboard({ config, onSettings }: Props) {
       {screen === "case" && selectedEcli ? (
         <div className="flex-1 overflow-hidden p-6">
           <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
-            <CaseViewer ecli={selectedEcli} config={config} onBack={handleBack} />
+            <CaseViewer ecli={selectedEcli} config={config} onBack={handleBack} onCaseSelect={handleCaseSelected} />
           </div>
         </div>
       ) : (
@@ -105,6 +107,7 @@ export default function Dashboard({ config, onSettings }: Props) {
             <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
               {view === "search" && <SearchPanel onCaseSelected={handleCaseSelected} />}
               {view === "ecli" && <EcliPanel onCaseLoaded={handleCaseLoaded} />}
+              {view === "compare" && <CaseComparisonPanel config={config} />}
               {view === "upload" && <PdfUploadPanel config={config} />}
             </div>
           </div>

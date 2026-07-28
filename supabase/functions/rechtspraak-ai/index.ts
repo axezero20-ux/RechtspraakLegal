@@ -9,11 +9,8 @@ const corsHeaders = {
 // ── XML text extraction helpers ──────────────────────────────────────────────
 
 function extractTextFromXML(xml: string): string {
-  // Remove XML declaration and processing instructions
   let text = xml.replace(/<\?[^>]*\?>/g, "");
-  // Remove all XML tags but keep their text content
   text = text.replace(/<[^>]+>/g, " ");
-  // Decode common XML entities
   text = text
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -21,32 +18,24 @@ function extractTextFromXML(xml: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&#39;/g, "'");
-  // Collapse whitespace
   text = text.replace(/\s+/g, " ").trim();
   return text;
 }
 
 function extractMetadataFromXML(xml: string): Record<string, string> {
   const meta: Record<string, string> = {};
-  // Extract title
   const titleMatch = xml.match(/<dcterms:title[^>]*>(.*?)<\/dcterms:title>/s);
   if (titleMatch) meta.title = titleMatch[1].trim();
-  // Extract creator (court)
   const creatorMatch = xml.match(/<dcterms:creator[^>]*>(.*?)<\/dcterms:creator>/s);
   if (creatorMatch) meta.creator = creatorMatch[1].trim();
-  // Extract date
   const dateMatch = xml.match(/<dcterms:date[^>]*>(.*?)<\/dcterms:date>/s);
   if (dateMatch) meta.date = dateMatch[1].trim();
-  // Extract identifier (ECLI)
   const idMatch = xml.match(/<dcterms:identifier[^>]*>(.*?)<\/dcterms:identifier>/s);
   if (idMatch) meta.identifier = idMatch[1].trim();
-  // Extract subject
   const subjectMatch = xml.match(/<dcterms:subject[^>]*>(.*?)<\/dcterms:subject>/s);
   if (subjectMatch) meta.subject = subjectMatch[1].trim();
-  // Extract zaaknummer
   const zaakMatch = xml.match(/<psi:zaaknummer[^>]*>(.*?)<\/psi:zaaknummer>/s);
   if (zaakMatch) meta.zaaknummer = zaakMatch[1].trim();
-  // Extract summary
   const summaryMatch = xml.match(/<summary[^>]*>(.*?)<\/summary>/s);
   if (summaryMatch) meta.summary = summaryMatch[1].trim();
   return meta;
@@ -61,8 +50,8 @@ async function searchRechtspraak(params: {
   max?: number;
   type?: string;
   court?: string;
+  subject?: string;
 }): Promise<unknown> {
-  // Use the official Open Data API for structured search
   const searchUrl = new URL("https://data.rechtspraak.nl/uitspraken/zoeken");
 
   const searchParams: string[][] = [];
@@ -82,6 +71,9 @@ async function searchRechtspraak(params: {
   if (params.court) {
     searchParams.push(["creator", params.court]);
   }
+  if (params.subject) {
+    searchParams.push(["subject", params.subject]);
+  }
   searchParams.push(["return", "DOC"]);
 
   const url = `${searchUrl.toString()}?${new URLSearchParams(searchParams).toString()}`;
@@ -96,7 +88,6 @@ async function searchRechtspraak(params: {
 
   const xml = await response.text();
 
-  // Parse search results from Atom XML feed
   const entries: unknown[] = [];
   const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
   let match;
@@ -138,7 +129,6 @@ async function getCaseContent(ecli: string): Promise<unknown> {
   const metadata = extractMetadataFromXML(xml);
   const text = extractTextFromXML(xml);
 
-  // Truncate to ~80k chars for AI processing
   const truncated = text.length > 80000 ? text.substring(0, 80000) + "..." : text;
 
   return {
@@ -169,7 +159,7 @@ async function callAI(params: {
 
     const body: Record<string, unknown> = {
       model: model || "claude-sonnet-4-20250514",
-      max_tokens: 4096,
+      max_tokens: maxTokens || 4096,
       messages: claudeMessages,
     };
     if (systemPrompt) body.system = systemPrompt;
@@ -192,7 +182,6 @@ async function callAI(params: {
     const data = await response.json();
     return data.content?.[0]?.text || "No response from Claude.";
   } else {
-    // OpenRouter
     const requestedModel = model || "meta-llama/llama-3.3-70b-instruct:free";
     const isFreeModel = requestedModel.includes(":free");
 
@@ -204,7 +193,6 @@ async function callAI(params: {
       "meta-llama/llama-3.2-3b-instruct:free",
     ];
 
-    // Build the list of models to try: the requested one first, then other free fallbacks
     const modelsToTry = isFreeModel
       ? [requestedModel, ...freeFallbacks.filter((m) => m !== requestedModel)]
       : [requestedModel];
@@ -242,7 +230,6 @@ async function callAI(params: {
         }
       }
 
-      // Parse error
       const errText = await response.text();
       let errMessage = `OpenRouter API error (${response.status})`;
       try {
@@ -253,7 +240,6 @@ async function callAI(params: {
       }
       lastError = errMessage;
 
-      // Only retry for free models on 404/availability issues
       const isAvailabilityError =
         response.status === 404 ||
         response.status === 429 ||
@@ -267,12 +253,197 @@ async function callAI(params: {
       if (!isFreeModel || !isAvailabilityError) {
         throw new Error(errMessage);
       }
-      // Continue to next fallback model
     }
 
     throw new Error(
       `All free models were temporarily unavailable. Last error: ${lastError}. Try again later or use a paid model.`
     );
+  }
+}
+
+// ── Deep case analysis ──────────────────────────────────────────────────────
+
+async function analyzeCase(params: {
+  provider: "claude" | "openrouter";
+  apiKey: string;
+  model?: string;
+  caseText: string;
+  ecli: string;
+  metadata: Record<string, string>;
+}): Promise<unknown> {
+  const { provider, apiKey, model, caseText, ecli, metadata } = params;
+  const truncatedText = caseText.substring(0, 40000);
+
+  const systemPrompt = `You are an expert legal analyst specializing in Dutch law (Rechtspraak). You provide structured, thorough legal analysis. Always respond in valid JSON format unless asked otherwise. Respond in the same language as the case, defaulting to English if unclear.`;
+
+  const userMessage = `Analyze the following Dutch court ruling and extract structured legal information. Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
+
+{
+  "legalPrinciples": ["key legal principles established or applied"],
+  "keyArguments": [
+    { "party": "who made the argument", "argument": "the argument", "outcome": "accepted/rejected/partially accepted" }
+  ],
+  "citedLegislation": [
+    { "title": "name of the law/act", "articles": ["article numbers"], "relevance": "how it applies" }
+  ],
+  "referencedCases": [
+    { "ecli": "ECLI if available", "title": "case title or reference", "how": "how it was used" }
+  ],
+  "timeline": [
+    { "date": "date or description", "event": "what happened" }
+  ],
+  "outcome": "summary of the final ruling",
+  "legalArea": "area of law (e.g. civil, criminal, administrative, labor)",
+  "significance": "why this case is legally significant"
+}
+
+Case details:
+ECLI: ${ecli}
+${metadata?.title ? `Title: ${metadata.title}` : ""}
+${metadata?.creator ? `Court: ${metadata.creator}` : ""}
+${metadata?.date ? `Date: ${metadata.date}` : ""}
+
+Case text:
+${truncatedText}`;
+
+  const result = await callAI({
+    provider,
+    apiKey,
+    model,
+    messages: [{ role: "user", content: userMessage }],
+    systemPrompt,
+    maxTokens: 4096,
+  });
+
+  try {
+    const cleaned = result.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    return JSON.parse(cleaned);
+  } catch {
+    return { rawAnalysis: result };
+  }
+}
+
+// ── Compare multiple cases ──────────────────────────────────────────────────
+
+async function compareCases(params: {
+  provider: "claude" | "openrouter";
+  apiKey: string;
+  model?: string;
+  cases: { ecli: string; text: string; metadata: Record<string, string> }[];
+}): Promise<unknown> {
+  const { provider, apiKey, model, cases } = params;
+
+  let contextBlock = "";
+  for (const c of cases) {
+    contextBlock += `=== CASE: ${c.ecli} ===\n`;
+    if (c.metadata?.title) contextBlock += `Title: ${c.metadata.title}\n`;
+    if (c.metadata?.creator) contextBlock += `Court: ${c.metadata.creator}\n`;
+    if (c.metadata?.date) contextBlock += `Date: ${c.metadata.date}\n`;
+    contextBlock += `Text: ${c.text.substring(0, 20000)}\n\n`;
+  }
+
+  const systemPrompt = `You are an expert legal analyst specializing in Dutch law (Rechtspraak). You compare court cases and identify similarities, differences, and legal patterns. Always respond in valid JSON format. Respond in English unless the cases are clearly in another language.`;
+
+  const userMessage = `Compare the following ${cases.length} Dutch court rulings. Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
+
+{
+  "commonPrinciples": ["legal principles shared across all or most cases"],
+  "differences": [
+    {
+      "topic": "the topic of difference",
+      "positions": [
+        { "ecli": "case ECLI", "position": "how this case approaches the topic" }
+      ]
+    }
+  ],
+  "convergencePoints": ["where the cases agree or converge"],
+  "divergencePoints": ["where the cases disagree or diverge"],
+  "legalEvolution": "how the law has evolved across these cases if they span different time periods",
+  "comparativeSummary": "overall comparison summary"
+}
+
+Cases to compare:
+
+${contextBlock}`;
+
+  const result = await callAI({
+    provider,
+    apiKey,
+    model,
+    messages: [{ role: "user", content: userMessage }],
+    systemPrompt,
+    maxTokens: 4096,
+  });
+
+  try {
+    const cleaned = result.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    return JSON.parse(cleaned);
+  } catch {
+    return { rawAnalysis: result };
+  }
+}
+
+// ── Find similar precedents ──────────────────────────────────────────────────
+
+async function findSimilarPrecedents(params: {
+  provider: "claude" | "openrouter";
+  apiKey: string;
+  model?: string;
+  caseText: string;
+  ecli: string;
+  metadata: Record<string, string>;
+  searchResults: { ecli: string; title: string; summary: string }[];
+}): Promise<unknown> {
+  const { provider, apiKey, model, caseText, ecli, metadata, searchResults } = params;
+
+  const candidateList = searchResults
+    .filter((r) => r.ecli !== ecli)
+    .slice(0, 20)
+    .map((r, i) => `${i + 1}. ECLI: ${r.ecli}\n   Title: ${r.title}\n   Summary: ${r.summary || "N/A"}`)
+    .join("\n\n");
+
+  const systemPrompt = `You are an expert legal analyst specializing in Dutch law (Rechtspraak). You identify similar precedents and explain their relevance. Always respond in valid JSON format. Respond in English.`;
+
+  const userMessage = `Given the primary case below and a list of candidate cases from Rechtspraak.nl, identify which candidates are most similar as precedents. Return ONLY valid JSON (no markdown, no code fences) with this exact structure:
+
+{
+  "similarPrecedents": [
+    {
+      "ecli": "candidate ECLI",
+      "title": "candidate title",
+      "similarity": "high/medium/low",
+      "reason": "why this case is similar",
+      "sharedPrinciples": ["shared legal principles"],
+      "keyDifference": "main difference from the primary case"
+    }
+  ],
+  "precedentSummary": "overall analysis of precedent relationships"
+}
+
+Primary case:
+ECLI: ${ecli}
+${metadata?.title ? `Title: ${metadata.title}` : ""}
+${metadata?.creator ? `Court: ${metadata.creator}` : ""}
+${metadata?.subject ? `Subject: ${metadata.subject}` : ""}
+Text (excerpt): ${caseText.substring(0, 15000)}
+
+Candidate cases:
+${candidateList}`;
+
+  const result = await callAI({
+    provider,
+    apiKey,
+    model,
+    messages: [{ role: "user", content: userMessage }],
+    systemPrompt,
+    maxTokens: 4096,
+  });
+
+  try {
+    const cleaned = result.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    return JSON.parse(cleaned);
+  } catch {
+    return { rawAnalysis: result };
   }
 }
 
@@ -375,6 +546,27 @@ Deno.serve(async (req: Request) => {
           maxTokens: 4000,
         });
         return new Response(JSON.stringify({ response: result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "analyze": {
+        const result = await analyzeCase(payload);
+        return new Response(JSON.stringify({ analysis: result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "compareCases": {
+        const result = await compareCases(payload);
+        return new Response(JSON.stringify({ comparison: result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "findSimilar": {
+        const result = await findSimilarPrecedents(payload);
+        return new Response(JSON.stringify({ precedents: result }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
