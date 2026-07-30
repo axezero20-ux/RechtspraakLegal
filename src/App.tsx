@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import ApiSetup from "./components/ApiSetup";
 import Dashboard from "./components/Dashboard";
 import type { ApiConfig } from "./types";
-import { getApiConfig } from "./storage";
+import { getApiConfig, getDefaultApiConfig } from "./storage";
 
 export default function App() {
   const [config, setConfig] = useState<ApiConfig | null>(null);
@@ -11,13 +11,13 @@ export default function App() {
 
   useEffect(() => {
     const stored = getApiConfig();
-    if (stored) setConfig(stored);
+    setConfig(stored ?? getDefaultApiConfig());
     setInitialized(true);
   }, []);
 
   if (!initialized) return null;
 
-  if (!config || showSettings) {
+  if (showSettings) {
     return (
       <ApiSetup
         onComplete={(c) => {
@@ -33,7 +33,7 @@ export default function App() {
 
   return (
     <Dashboard
-      config={config}
+      config={config!}
       onSettings={() => setShowSettings(true)}
     />
   );

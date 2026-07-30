@@ -1,7 +1,15 @@
 import { useState } from "react";
 import { Scale, Key, ArrowRight, Settings, Shield, FileText, Brain } from "lucide-react";
 import type { ApiConfig, AIProvider } from "../types";
-import { saveApiConfig, validateApiKey, DEFAULT_MODELS, MODEL_OPTIONS } from "../storage";
+import {
+  saveApiConfig,
+  validateApiKey,
+  DEFAULT_MODELS,
+  MODEL_OPTIONS,
+  DEFAULT_PROVIDER,
+  DEFAULT_API_KEY,
+  DEFAULT_MODEL,
+} from "../storage";
 
 interface Props {
   onComplete: (config: ApiConfig) => void;
@@ -11,9 +19,9 @@ interface Props {
 }
 
 export default function ApiSetup({ onComplete, isSettings, existingConfig, onCancel }: Props) {
-  const [provider, setProvider] = useState<AIProvider>(existingConfig?.provider || "claude");
-  const [apiKey, setApiKey] = useState(existingConfig?.apiKey || "");
-  const [model, setModel] = useState(existingConfig?.model || DEFAULT_MODELS[existingConfig?.provider || "claude"]);
+  const [provider, setProvider] = useState<AIProvider>(existingConfig?.provider || DEFAULT_PROVIDER);
+  const [apiKey, setApiKey] = useState(existingConfig?.apiKey || DEFAULT_API_KEY);
+  const [model, setModel] = useState(existingConfig?.model || DEFAULT_MODELS[existingConfig?.provider || DEFAULT_PROVIDER]);
   const [error, setError] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
 
@@ -31,7 +39,20 @@ export default function ApiSetup({ onComplete, isSettings, existingConfig, onCan
 
   function handleProviderChange(p: AIProvider) {
     setProvider(p);
-    setModel(DEFAULT_MODELS[p]);
+    if (p === DEFAULT_PROVIDER) {
+      setApiKey(DEFAULT_API_KEY);
+      setModel(DEFAULT_MODEL);
+    } else {
+      setApiKey("");
+      setModel(DEFAULT_MODELS[p]);
+    }
+    setError(null);
+  }
+
+  function resetToDefaults() {
+    setProvider(DEFAULT_PROVIDER);
+    setApiKey(DEFAULT_API_KEY);
+    setModel(DEFAULT_MODEL);
     setError(null);
   }
 
@@ -151,7 +172,7 @@ export default function ApiSetup({ onComplete, isSettings, existingConfig, onCan
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
                 list={`model-suggestions-${provider}`}
-                placeholder={provider === "claude" ? "claude-sonnet-4-20250514" : "meta-llama/llama-3.3-70b-instruct:free"}
+                placeholder={provider === "claude" ? "claude-sonnet-4-20250514" : "nvidia/nemotron-3-ultra-550b-a55b:free"}
                 className="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
               />
               <datalist id={`model-suggestions-${provider}`}>
@@ -162,7 +183,7 @@ export default function ApiSetup({ onComplete, isSettings, existingConfig, onCan
                 ))}
               </datalist>
               <p className="mt-2 text-xs text-slate-500">
-                Enter any model ID, or pick from suggestions. {provider === "openrouter" && "Use the ':free' suffix for free models (e.g. qwen/qwen-2.5-72b-instruct:free)."}
+                Enter any model ID, or pick from suggestions. {provider === "openrouter" && "All listed models are free on OpenRouter."}
               </p>
             </div>
 
@@ -181,6 +202,15 @@ export default function ApiSetup({ onComplete, isSettings, existingConfig, onCan
                   className="px-6 py-3 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-700/50 transition-all font-medium"
                 >
                   Cancel
+                </button>
+              )}
+              {isSettings && (
+                <button
+                  type="button"
+                  onClick={resetToDefaults}
+                  className="px-6 py-3 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-700/50 transition-all font-medium"
+                >
+                  Reset to Defaults
                 </button>
               )}
               <button
