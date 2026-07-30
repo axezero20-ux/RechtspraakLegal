@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Scale, Search, FileText, Upload, Settings, Sparkles, GitCompare,
+  Scale, Search, FileText, Upload, Settings, Sparkles, GitCompare, HelpCircle,
 } from "lucide-react";
 import type { ApiConfig, CaseContent } from "../types";
 import SearchPanel from "./SearchPanel";
@@ -8,8 +8,9 @@ import EcliPanel from "./EcliPanel";
 import PdfUploadPanel from "./PdfUploadPanel";
 import CaseViewer from "./CaseViewer";
 import CaseComparisonPanel from "./CaseComparisonPanel";
+import HelpPanel from "./HelpPanel";
 
-type View = "search" | "ecli" | "upload" | "compare";
+type View = "search" | "ecli" | "upload" | "compare" | "help";
 type Screen = "main" | "case";
 
 interface Props {
@@ -42,6 +43,7 @@ export default function Dashboard({ config, onSettings }: Props) {
     { id: "ecli" as View, label: "ECLI Code", icon: FileText },
     { id: "compare" as View, label: "Compare Cases", icon: GitCompare },
     { id: "upload" as View, label: "Upload Document", icon: Upload },
+    { id: "help" as View, label: "Help", icon: HelpCircle },
   ];
 
   return (
@@ -109,6 +111,7 @@ export default function Dashboard({ config, onSettings }: Props) {
               {view === "ecli" && <EcliPanel onCaseLoaded={handleCaseLoaded} />}
               {view === "compare" && <CaseComparisonPanel config={config} />}
               {view === "upload" && <PdfUploadPanel config={config} />}
+              {view === "help" && <HelpPanel />}
             </div>
           </div>
         </div>
