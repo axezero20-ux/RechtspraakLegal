@@ -1,21 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import ApiSetup from "./components/ApiSetup";
 import Dashboard from "./components/Dashboard";
 import type { ApiConfig } from "./types";
-import { getApiConfig, getDefaultApiConfig } from "./storage";
+import { getApiConfig, getDefaultApiConfig, saveApiConfig } from "./storage";
+
+function loadConfig(): ApiConfig {
+  const stored = getApiConfig();
+  if (stored) return stored;
+  const defaults = getDefaultApiConfig();
+  saveApiConfig(defaults);
+  return defaults;
+}
 
 export default function App() {
-  const [config, setConfig] = useState<ApiConfig | null>(null);
+  const [config, setConfig] = useState<ApiConfig>(loadConfig);
   const [showSettings, setShowSettings] = useState(false);
-  const [initialized, setInitialized] = useState(false);
-
-  useEffect(() => {
-    const stored = getApiConfig();
-    setConfig(stored ?? getDefaultApiConfig());
-    setInitialized(true);
-  }, []);
-
-  if (!initialized) return null;
 
   if (showSettings) {
     return (
@@ -24,7 +23,7 @@ export default function App() {
           setConfig(c);
           setShowSettings(false);
         }}
-        isSettings={showSettings}
+        isSettings
         existingConfig={config}
         onCancel={() => setShowSettings(false)}
       />
@@ -33,7 +32,7 @@ export default function App() {
 
   return (
     <Dashboard
-      config={config!}
+      config={config}
       onSettings={() => setShowSettings(true)}
     />
   );
