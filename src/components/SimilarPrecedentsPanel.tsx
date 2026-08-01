@@ -1,10 +1,27 @@
 import { useState, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Sparkles, Loader2, AlertCircle, Link2, TrendingUp,
   FileText, ChevronRight, ArrowRight,
 } from "lucide-react";
 import type { ApiConfig, CaseContent, PrecedentAnalysis, SearchResult } from "../types";
 import { findSimilarPrecedents, searchRechtspraak } from "../api";
+
+function tryParsePrecedents(raw: string): PrecedentAnalysis | null {
+  if (!raw) return null;
+  try {
+    let text = raw.trim();
+    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) text = fenceMatch[1].trim();
+    const firstBrace = text.indexOf("{");
+    const lastBrace = text.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1) text = text.slice(firstBrace, lastBrace + 1);
+    return JSON.parse(text) as PrecedentAnalysis;
+  } catch {
+    return null;
+  }
+}
 
 interface Props {
   caseContent: CaseContent;
@@ -97,12 +114,14 @@ export default function SimilarPrecedentsPanel({ caseContent, config, onCaseSele
   }
 
   const hasRaw = !precedents.similarPrecedents && precedents.rawAnalysis;
+  const parsedFromRaw = hasRaw ? tryParsePrecedents(precedents.rawAnalysis!) : null;
+  const p = parsedFromRaw || precedents;
 
-  if (hasRaw) {
+  if (hasRaw && !parsedFromRaw) {
     return (
       <div className="space-y-4">
-        <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-          <p className="text-sm text-slate-600 whitespace-pre-wrap">{precedents.rawAnalysis}</p>
+        <div className="prose prose-sm prose-slate max-w-none prose-headings:text-slate-800 prose-p:text-slate-600 prose-li:text-slate-600 prose-table:w-full prose-th:px-3 prose-th:py-2 prose-th:text-xs prose-th:font-semibold prose-th:text-slate-700 prose-th:bg-slate-100 prose-th:border prose-th:border-slate-300 prose-td:px-3 prose-td:py-2 prose-td:text-sm prose-td:text-slate-600 prose-td:border prose-td:border-slate-200">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{precedents.rawAnalysis!}</ReactMarkdown>
         </div>
         <button
           onClick={handleFind}
@@ -115,7 +134,7 @@ export default function SimilarPrecedentsPanel({ caseContent, config, onCaseSele
     );
   }
 
-  const sorted = [...(precedents.similarPrecedents || [])].sort((a, b) => {
+  const sorted = [...(p.similarPrecedents || [])].sort((a, b) => {
     const order = { high: 0, medium: 1, low: 2 };
     return (order[a.similarity] ?? 3) - (order[b.similarity] ?? 3);
   });
@@ -123,26 +142,26 @@ export default function SimilarPrecedentsPanel({ caseContent, config, onCaseSele
   return (
     <div className="space-y-4">
       {/* Summary */}
-      {precedents.precedentSummary && (
+      {p.precedentSummary && (
         <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="w-4 h-4 text-blue-500" />
             <span className="text-sm font-medium text-blue-700">Precedent Analysis</span>
           </div>
-          <p className="text-sm text-slate-700">{precedents.precedentSummary}</p>
+          <p className="text-sm text-slate-700">{p.precedentSummary}</p>
         </div>
       )}
 
       {/* Precedent cards */}
       {sorted.length > 0 ? (
         <div className="space-y-2">
-          {sorted.map((p, i) => (
+          {sorted.map((item, i) => (
             <div
               key={i}
               className={`p-4 rounded-lg border transition-all ${
-                p.similarity === "high"
+                item.similarity === "high"
                   ? "border-emerald-200 bg-emerald-50/30"
-                  : p.similarity === "medium"
+                  : item.similarity === "medium"
                   ? "border-blue-200 bg-blue-50/30"
                   : "border-slate-200 bg-slate-50/30"
               }`}
@@ -152,21 +171,21 @@ export default function SimilarPrecedentsPanel({ caseContent, config, onCaseSele
                   <div className="flex items-center gap-2 mb-1">
                     <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
                     <button
-                      onClick={() => onCaseSelect(p.ecli)}
+                      onClick={() => onCaseSelect(item.ecli)}
                       className="text-xs font-mono text-blue-600 font-medium hover:underline"
                     >
-                      {p.ecli}
+                      {item.ecli}
                     </button>
-                    <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${getSimilarityColor(p.similarity)}`}>
-                      {p.similarity}
+                    <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${getSimilarityColor(item.similarity)}`}>
+                      {item.similarity}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-700 mb-1">{p.title}</p>
-                  <p className="text-xs text-slate-500 mb-2">{p.reason}</p>
+                  <p className="text-sm text-slate-700 mb-1">{item.title}</p>
+                  <p className="text-xs text-slate-500 mb-2">{item.reason}</p>
 
-                  {p.sharedPrinciples?.length > 0 && (
+                  {item.sharedPrinciples?.length > 0 && (
                     <div className="flex flex-wrap gap-1 mb-2">
-                      {p.sharedPrinciples.map((sp, j) => (
+                      {item.sharedPrinciples.map((sp, j) => (
                         <span key={j} className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] rounded">
                           {sp}
                         </span>
@@ -174,15 +193,15 @@ export default function SimilarPrecedentsPanel({ caseContent, config, onCaseSele
                     </div>
                   )}
 
-                  {p.keyDifference && (
+                  {item.keyDifference && (
                     <div className="flex items-start gap-1.5 mt-1">
                       <ArrowRight className="w-3 h-3 text-slate-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-slate-500"><span className="font-medium">Key difference:</span> {p.keyDifference}</p>
+                      <p className="text-xs text-slate-500"><span className="font-medium">Key difference:</span> {item.keyDifference}</p>
                     </div>
                   )}
                 </div>
                 <button
-                  onClick={() => onCaseSelect(p.ecli)}
+                  onClick={() => onCaseSelect(item.ecli)}
                   className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-all flex-shrink-0"
                 >
                   Open

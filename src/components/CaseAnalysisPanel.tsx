@@ -1,10 +1,27 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Sparkles, Loader2, AlertCircle, Scale, Gavel, BookOpen,
   Calendar, FileText, Lightbulb, ChevronRight, Gavel as GavelIcon,
 } from "lucide-react";
 import type { ApiConfig, CaseAnalysis, CaseContent } from "../types";
 import { analyzeCase } from "../api";
+
+function tryParseAnalysis(raw: string): CaseAnalysis | null {
+  if (!raw) return null;
+  try {
+    let text = raw.trim();
+    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) text = fenceMatch[1].trim();
+    const firstBrace = text.indexOf("{");
+    const lastBrace = text.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1) text = text.slice(firstBrace, lastBrace + 1);
+    return JSON.parse(text) as CaseAnalysis;
+  } catch {
+    return null;
+  }
+}
 
 interface Props {
   caseContent: CaseContent;
@@ -88,16 +105,18 @@ export default function CaseAnalysisPanel({ caseContent, config, analysis, onAna
   }
 
   const hasRaw = !analysis.legalPrinciples && analysis.rawAnalysis;
+  const parsedFromRaw = hasRaw ? tryParseAnalysis(analysis.rawAnalysis!) : null;
+  const a = parsedFromRaw || analysis;
 
-  if (hasRaw) {
+  if (hasRaw && !parsedFromRaw) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-2 text-sm text-slate-500">
           <Sparkles className="w-4 h-4" />
           <span>AI Analysis (unstructured)</span>
         </div>
-        <div className="p-4 bg-slate-50 rounded-lg border border-slate-200">
-          <p className="text-sm text-slate-600 whitespace-pre-wrap">{analysis.rawAnalysis}</p>
+        <div className="prose prose-sm prose-slate max-w-none prose-headings:text-slate-800 prose-p:text-slate-600 prose-li:text-slate-600 prose-table:w-full prose-th:px-3 prose-th:py-2 prose-th:text-xs prose-th:font-semibold prose-th:text-slate-700 prose-th:bg-slate-100 prose-th:border prose-th:border-slate-300 prose-td:px-3 prose-td:py-2 prose-td:text-sm prose-td:text-slate-600 prose-td:border prose-td:border-slate-200">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{analysis.rawAnalysis!}</ReactMarkdown>
         </div>
         <button
           onClick={handleAnalyze}
@@ -119,24 +138,24 @@ export default function CaseAnalysisPanel({ caseContent, config, analysis, onAna
             <Lightbulb className="w-4 h-4 text-blue-500" />
             <span className="text-xs font-medium text-blue-700">Legal Area</span>
           </div>
-          <p className="text-sm text-slate-700">{analysis.legalArea || "Not identified"}</p>
+          <p className="text-sm text-slate-700">{a.legalArea || "Not identified"}</p>
         </div>
         <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
           <div className="flex items-center gap-2 mb-1">
             <Gavel className="w-4 h-4 text-emerald-500" />
             <span className="text-xs font-medium text-emerald-700">Outcome</span>
           </div>
-          <p className="text-sm text-slate-700">{analysis.outcome || "Not identified"}</p>
+          <p className="text-sm text-slate-700">{a.outcome || "Not identified"}</p>
         </div>
       </div>
 
-      {analysis.significance && (
+      {a.significance && (
         <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
           <div className="flex items-start gap-2">
             <Sparkles className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-xs font-medium text-amber-700 mb-1">Legal Significance</p>
-              <p className="text-sm text-slate-600">{analysis.significance}</p>
+              <p className="text-sm text-slate-600">{a.significance}</p>
             </div>
           </div>
         </div>
@@ -145,7 +164,7 @@ export default function CaseAnalysisPanel({ caseContent, config, analysis, onAna
       {/* Section tabs */}
       <div className="flex flex-wrap gap-1 border-b border-slate-200 pb-1">
         {SECTIONS.map((s) => {
-          const count = getSectionCount(analysis, s.id);
+          const count = getSectionCount(a, s.id);
           return (
             <button
               key={s.id}
@@ -174,8 +193,8 @@ export default function CaseAnalysisPanel({ caseContent, config, analysis, onAna
       <div className="min-h-[200px]">
         {activeSection === "principles" && (
           <div className="space-y-2">
-            {analysis.legalPrinciples?.length > 0 ? (
-              analysis.legalPrinciples.map((p, i) => (
+            {a.legalPrinciples?.length > 0 ? (
+              a.legalPrinciples.map((p, i) => (
                 <div key={i} className="flex items-start gap-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
                   <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                     <span className="text-xs font-bold text-blue-600">{i + 1}</span>
@@ -191,16 +210,16 @@ export default function CaseAnalysisPanel({ caseContent, config, analysis, onAna
 
         {activeSection === "arguments" && (
           <div className="space-y-2">
-            {analysis.keyArguments?.length > 0 ? (
-              analysis.keyArguments.map((a, i) => (
+            {a.keyArguments?.length > 0 ? (
+              a.keyArguments.map((arg, i) => (
                 <div key={i} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-medium text-slate-500">{a.party || "Unknown party"}</span>
-                    <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${getOutcomeColor(a.outcome)}`}>
-                      {a.outcome || "Unknown"}
+                    <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${getOutcomeColor(arg.outcome)}`}>
+                      {arg.outcome || "Unknown"}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-700">{a.argument}</p>
+                  <p className="text-sm text-slate-700">{arg.argument}</p>
                 </div>
               ))
             ) : (
@@ -211,8 +230,8 @@ export default function CaseAnalysisPanel({ caseContent, config, analysis, onAna
 
         {activeSection === "legislation" && (
           <div className="space-y-2">
-            {analysis.citedLegislation?.length > 0 ? (
-              analysis.citedLegislation.map((l, i) => (
+            {a.citedLegislation?.length > 0 ? (
+              a.citedLegislation.map((l, i) => (
                 <div key={i} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                   <div className="flex items-center gap-2 mb-1">
                     <BookOpen className="w-4 h-4 text-emerald-500 flex-shrink-0" />
@@ -238,8 +257,8 @@ export default function CaseAnalysisPanel({ caseContent, config, analysis, onAna
 
         {activeSection === "references" && (
           <div className="space-y-2">
-            {analysis.referencedCases?.length > 0 ? (
-              analysis.referencedCases.map((r, i) => (
+            {a.referencedCases?.length > 0 ? (
+              a.referencedCases.map((r, i) => (
                 <div key={i} className="p-3 bg-slate-50 rounded-lg border border-slate-100">
                   <div className="flex items-center gap-2 mb-1">
                     <FileText className="w-4 h-4 text-blue-500 flex-shrink-0" />
@@ -257,10 +276,10 @@ export default function CaseAnalysisPanel({ caseContent, config, analysis, onAna
 
         {activeSection === "timeline" && (
           <div className="space-y-2">
-            {analysis.timeline?.length > 0 ? (
+            {a.timeline?.length > 0 ? (
               <div className="relative pl-6">
                 <div className="absolute left-2 top-1 bottom-1 w-0.5 bg-slate-200" />
-                {analysis.timeline.map((t, i) => (
+                {a.timeline.map((t, i) => (
                   <div key={i} className="relative pb-4 last:pb-0">
                     <div className="absolute -left-[18px] top-1 w-3 h-3 bg-blue-500 rounded-full ring-4 ring-blue-50" />
                     <p className="text-xs font-medium text-blue-600 mb-0.5">{t.date}</p>

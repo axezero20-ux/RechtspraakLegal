@@ -388,7 +388,7 @@ async function callAI(params: {
       const content = await tryModel(modelId);
       if (content) {
         if (modelId !== requestedModel) {
-          return `${content}\n\n_(Fallback model used: **${modelId}** — requested model was temporarily unavailable)_`;
+          return content;
         }
         return content;
       }
@@ -411,7 +411,7 @@ async function callAI(params: {
         for (const modelId of dynamicFree) {
           const content = await tryModel(modelId);
           if (content) {
-            return `${content}\n\n_(Fallback model used: **${modelId}** — other models were temporarily unavailable)_`;
+            return content;
           }
         }
       }
