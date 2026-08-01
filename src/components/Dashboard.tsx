@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Scale, Search, FileText, Upload, Settings, Sparkles, GitCompare, HelpCircle,
+  Scale, Search, FileText, Upload, Settings, Sparkles, GitCompare, HelpCircle, LogOut,
 } from "lucide-react";
 import type { ApiConfig, CaseContent } from "../types";
 import SearchPanel from "./SearchPanel";
@@ -9,6 +9,7 @@ import PdfUploadPanel from "./PdfUploadPanel";
 import CaseViewer from "./CaseViewer";
 import CaseComparisonPanel from "./CaseComparisonPanel";
 import HelpPanel from "./HelpPanel";
+import { useAuth } from "../context/AuthContext";
 
 type View = "search" | "ecli" | "upload" | "compare" | "help";
 type Screen = "main" | "case";
@@ -19,6 +20,7 @@ interface Props {
 }
 
 export default function Dashboard({ config, onSettings }: Props) {
+  const { profile, signOut } = useAuth();
   const [view, setView] = useState<View>("search");
   const [screen, setScreen] = useState<Screen>("main");
   const [selectedEcli, setSelectedEcli] = useState<string | null>(null);
@@ -61,6 +63,16 @@ export default function Dashboard({ config, onSettings }: Props) {
         </div>
 
         <div className="flex items-center gap-3">
+          {profile && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
+              <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                {profile.first_name?.charAt(0).toUpperCase() || "U"}
+              </div>
+              <span className="text-xs text-slate-600 font-medium">
+                {profile.first_name} {profile.last_name}
+              </span>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
             <Sparkles className="w-3.5 h-3.5 text-blue-500" />
             <span className="text-xs text-slate-600">
@@ -73,6 +85,13 @@ export default function Dashboard({ config, onSettings }: Props) {
           >
             <Settings className="w-4 h-4" />
             <span className="text-xs font-medium">Settings</span>
+          </button>
+          <button
+            onClick={signOut}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="text-xs font-medium">Sign Out</span>
           </button>
         </div>
       </header>
