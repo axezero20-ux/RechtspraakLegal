@@ -297,29 +297,42 @@ async function callAI(params: {
     const requestedModel = model || "meta-llama/llama-3.3-70b-instruct:free";
     const isFreeModel = requestedModel.includes(":free");
 
-    const freeFallbacks = [
+    // Large static list of known free models on OpenRouter (priority order)
+    const STATIC_FREE_MODELS = [
       "meta-llama/llama-3.3-70b-instruct:free",
       "google/gemini-2.0-flash-exp:free",
+      "deepseek/deepseek-chat-v3-0324:free",
       "deepseek/deepseek-r1:free",
+      "deepseek/deepseek-v3-base:free",
       "qwen/qwen-2.5-72b-instruct:free",
+      "qwen/qwen3-235b-a22b:free",
+      "qwen/qwen3-30b-a3b:free",
+      "qwen/qwen3-14b:free",
+      "qwen/qwen3-8b:free",
+      "mistralai/mistral-nemo:free",
+      "mistralai/mistral-7b-instruct:free",
+      "google/gemma-3-27b-it:free",
+      "google/gemma-3-12b-it:free",
+      "google/gemma-3-4b-it:free",
+      "google/gemma-2-9b-it:free",
+      "meta-llama/llama-3.2-11b-vision-instruct:free",
       "meta-llama/llama-3.2-3b-instruct:free",
+      "meta-llama/llama-3.2-1b-instruct:free",
+      "microsoft/phi-3-medium-128k-instruct:free",
+      "microsoft/phi-3-mini-128k-instruct:free",
+      "openchat/openchat-7b:free",
+      "huggingfaceh4/zephyr-7b-beta:free",
     ];
 
-    const modelsToTry = isFreeModel
-      ? [requestedModel, ...freeFallbacks.filter((m) => m !== requestedModel)]
-      : [requestedModel];
-
-    let lastError = "";
-
-    for (const modelId of modelsToTry) {
+    if (!isFreeModel) {
+      // Paid model — try once, throw on failure
       const body: Record<string, unknown> = {
-        model: modelId,
+        model: requestedModel,
         messages: systemPrompt
           ? [{ role: "system", content: systemPrompt }, ...messages]
           : messages,
-        max_tokens: maxTokens ?? (modelId.includes(":free") ? 2000 : 4096),
+        max_tokens: maxTokens ?? 4096,
       };
-
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -330,45 +343,82 @@ async function callAI(params: {
         },
         body: JSON.stringify(body),
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content;
-        if (content) {
-          if (modelId !== requestedModel) {
-            return `${content}\n\n_(Fallback model used: ${modelId} — requested model was temporarily unavailable)_`;
-          }
-          return content;
-        }
-      }
-
-      const errText = await response.text();
-      let errMessage = `OpenRouter API error (${response.status})`;
-      try {
-        const errJson = JSON.parse(errText);
-        if (errJson.error?.message) errMessage += `: ${errJson.error.message}`;
-      } catch {
-        if (errText) errMessage += `: ${errText.substring(0, 200)}`;
-      }
-      lastError = errMessage;
-
-      const isAvailabilityError =
-        response.status === 404 ||
-        response.status === 429 ||
-        response.status === 503 ||
-        errMessage.toLowerCase().includes("unavailable") ||
-        errMessage.toLowerCase().includes("not available") ||
-        errMessage.toLowerCase().includes("no providers") ||
-        errMessage.toLowerCase().includes("provider returned error") ||
-        errMessage.toLowerCase().includes("rate limit");
-
-      if (!isFreeModel || !isAvailabilityError) {
+      if (!response.ok) {
+        const errText = await response.text();
+        let errMessage = `OpenRouter API error (${response.status})`;
+        try {
+          const errJson = JSON.parse(errText);
+          if (errJson.error?.message) errMessage += `: ${errJson.error.message}`;
+        } catch { /**/ }
         throw new Error(errMessage);
+      }
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content || "No response from model.";
+    }
+
+    // Build the list of models to try: requested first, then all others
+    const staticQueue = [requestedModel, ...STATIC_FREE_MODELS.filter((m) => m !== requestedModel)];
+
+    // Helper to try a single model
+    async function tryModel(modelId: string): Promise<string | null> {
+      const body: Record<string, unknown> = {
+        model: modelId,
+        messages: systemPrompt
+          ? [{ role: "system", content: systemPrompt }, ...messages]
+          : messages,
+        max_tokens: maxTokens ?? 2000,
+      };
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://rechtspraak-ai.app",
+          "X-Title": "Rechtspraak AI Assistant",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content || null;
+    }
+
+    // Try static queue first
+    for (const modelId of staticQueue) {
+      const content = await tryModel(modelId);
+      if (content) {
+        if (modelId !== requestedModel) {
+          return `${content}\n\n_(Fallback model used: **${modelId}** — requested model was temporarily unavailable)_`;
+        }
+        return content;
       }
     }
 
+    // All static models failed — dynamically fetch currently available free models from OpenRouter
+    const triedSet = new Set(staticQueue);
+    try {
+      const modelsRes = await fetch("https://openrouter.ai/api/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (modelsRes.ok) {
+        const modelsData = await modelsRes.json();
+        const dynamicFree: string[] = (modelsData.data || [])
+          .filter((m: { id: string; pricing?: { prompt?: string } }) =>
+            m.id.endsWith(":free") && !triedSet.has(m.id)
+          )
+          .map((m: { id: string }) => m.id);
+
+        for (const modelId of dynamicFree) {
+          const content = await tryModel(modelId);
+          if (content) {
+            return `${content}\n\n_(Fallback model used: **${modelId}** — other models were temporarily unavailable)_`;
+          }
+        }
+      }
+    } catch { /**/ }
+
     throw new Error(
-      `All free models were temporarily unavailable. Last error: ${lastError}. Try again later or use a paid model.`
+      "All available free models are currently unavailable. Please try again in a few minutes, or switch to a paid model in Settings."
     );
   }
 }
