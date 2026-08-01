@@ -15,6 +15,8 @@ interface AuthContextValue {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  emailConfirmed: boolean;
+  clearEmailConfirmed: () => void;
   signUp: (params: {
     email: string;
     password: string;
@@ -33,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [emailConfirmed, setEmailConfirmed] = useState(false);
 
   async function fetchProfile(userId: string) {
     const { data, error } = await supabase
@@ -85,7 +88,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
+      // Detect email confirmation: a session appears via a redirect (not an explicit sign-in)
+      // and the user was not previously logged in.
+      if (event === "SIGNED_IN" && newSession?.user?.email_confirmed_at && !session) {
+        // This is the email-confirmation redirect — sign them out and show the confirmed landing page
+        supabase.auth.signOut().then(() => {
+          setSession(null);
+          setProfile(null);
+          setEmailConfirmed(true);
+          setLoading(false);
+        });
+        return;
+      }
+
       setSession(newSession);
       if (newSession?.user) {
         fetchProfile(newSession.user.id);
@@ -144,6 +160,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
   }
 
+  function clearEmailConfirmed() {
+    setEmailConfirmed(false);
+  }
+
   async function refreshProfile() {
     if (session?.user) {
       await fetchProfile(session.user.id);
@@ -155,6 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: session?.user ?? null,
     profile,
     loading,
+    emailConfirmed,
+    clearEmailConfirmed,
     signUp,
     signIn,
     signOut,

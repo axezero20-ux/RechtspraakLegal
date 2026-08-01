@@ -3,6 +3,7 @@ import ApiSetup from "./components/ApiSetup";
 import Dashboard from "./components/Dashboard";
 import SignUp from "./components/SignUp";
 import SignIn from "./components/SignIn";
+import EmailConfirmed from "./components/EmailConfirmed";
 import EmailVerification from "./components/EmailVerification";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import type { ApiConfig } from "./types";
@@ -20,7 +21,7 @@ function loadConfig(): ApiConfig {
 type AuthScreen = "signin" | "signup" | "verification";
 
 function AppContent() {
-  const { session, user, loading } = useAuth();
+  const { session, user, loading, emailConfirmed, clearEmailConfirmed } = useAuth();
   const [config, setConfig] = useState<ApiConfig>(loadConfig);
   const [showSettings, setShowSettings] = useState(false);
   const [authScreen, setAuthScreen] = useState<AuthScreen>("signin");
@@ -32,6 +33,11 @@ function AppContent() {
         <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
       </div>
     );
+  }
+
+  // Email was just confirmed via the link in the confirmation email — show landing page, no auto-login
+  if (emailConfirmed) {
+    return <EmailConfirmed onSwitchToSignIn={clearEmailConfirmed} />;
   }
 
   // Not signed in — show auth screens
