@@ -426,7 +426,17 @@ export function exportToPDF({ caseContent, summary, messages, analysis, preceden
   // ── AI Summary ──
   if (summary) {
     writeSectionHeading("Summary");
-    writeText(stripMarkdown(summary), { afterGap: 4 });
+    renderMarkdownContent(summary, {
+      writeText,
+      writeTable,
+      writeBullet,
+      writeDivider,
+      SUBHEADING_FONT_SIZE,
+      COLOR_DARK,
+      COLOR_BODY,
+      COLOR_MUTED,
+      contentW,
+    });
     writeDivider();
   }
 
