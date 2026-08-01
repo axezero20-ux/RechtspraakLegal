@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function SignIn({ onSwitchToSignUp, onEmailVerificationNeeded }: Props) {
-  const { signIn, user } = useAuth();
+  const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +24,7 @@ export default function SignIn({ onSwitchToSignUp, onEmailVerificationNeeded }: 
     }
 
     setLoading(true);
-    const { error: signInError } = await signIn(email.trim(), password);
+    const { error: signInError, needsEmailConfirmation } = await signIn(email.trim(), password);
 
     if (signInError) {
       setError(signInError);
@@ -32,8 +32,7 @@ export default function SignIn({ onSwitchToSignUp, onEmailVerificationNeeded }: 
       return;
     }
 
-    // Check if email is confirmed — if user is null after sign-in, email may not be verified
-    if (user && !user.email_confirmed_at) {
+    if (needsEmailConfirmation) {
       onEmailVerificationNeeded(email.trim());
     }
 

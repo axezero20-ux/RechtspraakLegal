@@ -4,9 +4,10 @@ import { useAuth } from "../context/AuthContext";
 
 interface Props {
   onSwitchToSignIn: () => void;
+  onEmailVerificationNeeded: (email: string) => void;
 }
 
-export default function SignUp({ onSwitchToSignIn }: Props) {
+export default function SignUp({ onSwitchToSignIn, onEmailVerificationNeeded }: Props) {
   const { signUp } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -39,7 +40,7 @@ export default function SignUp({ onSwitchToSignIn }: Props) {
     }
 
     setLoading(true);
-    const { error: signUpError } = await signUp({
+    const { error: signUpError, needsEmailConfirmation } = await signUp({
       email: email.trim(),
       password,
       firstName: firstName.trim(),
@@ -54,7 +55,11 @@ export default function SignUp({ onSwitchToSignIn }: Props) {
     }
 
     setLoading(false);
-    onSwitchToSignIn();
+    if (needsEmailConfirmation) {
+      onEmailVerificationNeeded(email.trim());
+    } else {
+      onSwitchToSignIn();
+    }
   }
 
   return (

@@ -21,8 +21,8 @@ interface AuthContextValue {
     firstName: string;
     lastName: string;
     phone: string;
-  }) => Promise<{ error: string | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  }) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
+  signIn: (email: string, password: string) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -45,6 +45,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Failed to fetch profile:", error.message);
       return;
     }
+
+    // Fallback: if no profile row exists, try to create one from auth user metadata
+    if (!data) {
+      const { data: userData } = await supabase.auth.getUser();
+      const meta = userData.user?.user_metadata;
+      if (meta) {
+        const { error: insertError } = await supabase.from("profiles").insert({
+          id: userId,
+          email: userData.user?.email || "",
+          first_name: meta.first_name || "",
+          last_name: meta.last_name || "",
+          phone: meta.phone || null,
+        });
+        if (insertError) {
+          console.error("Failed to create profile fallback:", insertError.message);
+          return;
+        }
+        // Re-fetch after insert
+        const { data: refetched } = await supabase
+          .from("profiles")
+          .select("id, email, first_name, last_name, phone")
+          .eq("id", userId)
+          .maybeSingle();
+        setProfile(refetched as Profile | null);
+        return;
+      }
+    }
+
     setProfile(data as Profile | null);
   }
 
@@ -78,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     firstName: string;
     lastName: string;
     phone: string;
-  }) {
+  }): Promise<{ error: string | null; needsEmailConfirmation: boolean }> {
     const { data, error } = await supabase.auth.signUp({
       email: params.email,
       password: params.password,
@@ -92,23 +120,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      return { error: error.message };
+      return { error: error.message, needsEmailConfirmation: false };
     }
 
-    if (data.user && !data.session) {
-      // Email confirmation required — user needs to verify email
-      return { error: null };
-    }
-
-    return { error: null };
+    // If no session was created, email confirmation is required
+    const needsConfirmation = !data.session;
+    return { error: null, needsEmailConfirmation: needsConfirmation };
   }
 
-  async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+  async function signIn(email: string, password: string): Promise<{ error: string | null; needsEmailConfirmation: boolean }> {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      return { error: error.message };
+      return { error: error.message, needsEmailConfirmation: false };
     }
-    return { error: null };
+    // Check if email is confirmed from the actual response, not stale state
+    const needsConfirmation = !data.user?.email_confirmed_at;
+    return { error: null, needsEmailConfirmation: needsConfirmation };
   }
 
   async function signOut() {
@@ -142,3 +169,6 @@ export function useAuth() {
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 }
+
+
+export { useAuth }

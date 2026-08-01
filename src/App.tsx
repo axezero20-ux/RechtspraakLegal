@@ -40,6 +40,10 @@ function AppContent() {
       return (
         <SignUp
           onSwitchToSignIn={() => setAuthScreen("signin")}
+          onEmailVerificationNeeded={(email) => {
+            setPendingEmail(email);
+            setAuthScreen("verification");
+          }}
         />
       );
     }
