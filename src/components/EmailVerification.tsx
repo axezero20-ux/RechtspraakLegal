@@ -8,81 +8,35 @@ interface Props {
   onSwitchToSignIn: () => void;
 }
 
-const CODE_LENGTH = 6;
-
 export default function EmailVerification({ email, onSwitchToSignIn }: Props) {
   const { verifyEmailOtp } = useAuth();
-  const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(""));
+  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
-  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    inputsRef.current[0]?.focus();
+    inputRef.current?.focus();
   }, []);
-
-  function handleChange(index: number, value: string) {
-    const clean = value.replace(/\D/g, "");
-    if (!clean) {
-      setDigits((prev) => {
-        const next = [...prev];
-        next[index] = "";
-        return next;
-      });
-      return;
-    }
-
-    if (clean.length > 1 && index === 0) {
-      const chars = clean.slice(0, CODE_LENGTH).split("");
-      const next = Array(CODE_LENGTH).fill("");
-      for (let i = 0; i < chars.length; i++) next[i] = chars[i];
-      setDigits(next);
-      inputsRef.current[Math.min(chars.length, CODE_LENGTH - 1)]?.focus();
-      return;
-    }
-
-    setDigits((prev) => {
-      const next = [...prev];
-      next[index] = clean.slice(-1);
-      return next;
-    });
-    if (index < CODE_LENGTH - 1) inputsRef.current[index + 1]?.focus();
-  }
-
-  function handleKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Backspace" && !digits[index] && index > 0) inputsRef.current[index - 1]?.focus();
-    if (e.key === "ArrowLeft" && index > 0) inputsRef.current[index - 1]?.focus();
-    if (e.key === "ArrowRight" && index < CODE_LENGTH - 1) inputsRef.current[index + 1]?.focus();
-  }
-
-  function handlePaste(e: React.ClipboardEvent) {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, CODE_LENGTH);
-    if (!pasted) return;
-    const next = Array(CODE_LENGTH).fill("");
-    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
-    setDigits(next);
-    inputsRef.current[Math.min(pasted.length, CODE_LENGTH - 1)]?.focus();
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const code = digits.join("");
-    if (code.length !== CODE_LENGTH) {
-      setError(`Please enter all ${CODE_LENGTH} digits.`);
+    const trimmed = code.trim();
+    if (!trimmed) {
+      setError("Please enter the verification code from your email.");
       return;
     }
     setLoading(true);
-    const { error: verifyError } = await verifyEmailOtp(email, code);
+    const { error: verifyError } = await verifyEmailOtp(email, trimmed);
     setLoading(false);
     if (verifyError) {
       setError(verifyError);
-      setDigits(Array(CODE_LENGTH).fill(""));
-      inputsRef.current[0]?.focus();
+      setCode("");
+      inputRef.current?.focus();
     }
   }
 
@@ -124,25 +78,22 @@ export default function EmailVerification({ email, onSwitchToSignIn }: Props) {
             <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center mb-4">
               <MailCheck className="w-8 h-8 text-blue-400" strokeWidth={1.5} />
             </div>
-            <p className="text-sm text-slate-300 mb-1">We sent a 6-digit verification code to</p>
+            <p className="text-sm text-slate-300 mb-1">We sent a verification code to</p>
             <p className="text-base font-medium text-white break-all">{email}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
-              {digits.map((digit, index) => (
-                <input
-                  key={index}
-                  ref={(el) => { inputsRef.current[index] = el; }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={digit}
-                  onChange={(e) => handleChange(index, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(index, e)}
-                  className="w-11 h-14 sm:w-12 sm:h-14 text-center text-2xl font-bold bg-slate-900/50 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
-                />
-              ))}
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Verification Code</label>
+              <input
+                ref={inputRef}
+                type="text"
+                inputMode="numeric"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="Enter your code"
+                className="w-full px-4 py-4 text-center text-3xl font-bold tracking-[0.4em] bg-slate-900/50 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
+              />
             </div>
 
             {error && (
@@ -154,7 +105,7 @@ export default function EmailVerification({ email, onSwitchToSignIn }: Props) {
 
             <button
               type="submit"
-              disabled={loading || !codeComplete}
+              disabled={loading || !code.trim()}
               className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-emerald-500 text-white rounded-xl font-medium hover:from-blue-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/20"
             >
               {loading ? (
