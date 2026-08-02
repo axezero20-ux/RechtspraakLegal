@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Scale, MailCheck, ArrowRight, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Scale, MailCheck, ArrowRight, AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 
@@ -8,65 +8,100 @@ interface Props {
   onSwitchToSignIn: () => void;
 }
 
+const CODE_LENGTH = 6;
+
 export default function EmailVerification({ email, onSwitchToSignIn }: Props) {
-  const { user } = useAuth();
+  const { verifyEmailOtp } = useAuth();
+  const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(""));
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [resendError, setResendError] = useState<string | null>(null);
-  const [verified, setVerified] = useState(false);
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
 
-  // If the user becomes fully authenticated (email confirmed + session), show success
   useEffect(() => {
-    if (user && user.email_confirmed_at) {
-      setVerified(true);
+    inputsRef.current[0]?.focus();
+  }, []);
+
+  function handleChange(index: number, value: string) {
+    const clean = value.replace(/\D/g, "");
+    if (!clean) {
+      setDigits((prev) => {
+        const next = [...prev];
+        next[index] = "";
+        return next;
+      });
+      return;
     }
-  }, [user]);
+
+    if (clean.length > 1 && index === 0) {
+      const chars = clean.slice(0, CODE_LENGTH).split("");
+      const next = Array(CODE_LENGTH).fill("");
+      for (let i = 0; i < chars.length; i++) next[i] = chars[i];
+      setDigits(next);
+      inputsRef.current[Math.min(chars.length, CODE_LENGTH - 1)]?.focus();
+      return;
+    }
+
+    setDigits((prev) => {
+      const next = [...prev];
+      next[index] = clean.slice(-1);
+      return next;
+    });
+    if (index < CODE_LENGTH - 1) inputsRef.current[index + 1]?.focus();
+  }
+
+  function handleKeyDown(index: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Backspace" && !digits[index] && index > 0) inputsRef.current[index - 1]?.focus();
+    if (e.key === "ArrowLeft" && index > 0) inputsRef.current[index - 1]?.focus();
+    if (e.key === "ArrowRight" && index < CODE_LENGTH - 1) inputsRef.current[index + 1]?.focus();
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, CODE_LENGTH);
+    if (!pasted) return;
+    const next = Array(CODE_LENGTH).fill("");
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
+    setDigits(next);
+    inputsRef.current[Math.min(pasted.length, CODE_LENGTH - 1)]?.focus();
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const code = digits.join("");
+    if (code.length !== CODE_LENGTH) {
+      setError(`Please enter all ${CODE_LENGTH} digits.`);
+      return;
+    }
+    setLoading(true);
+    const { error: verifyError } = await verifyEmailOtp(email, code);
+    setLoading(false);
+    if (verifyError) {
+      setError(verifyError);
+      setDigits(Array(CODE_LENGTH).fill(""));
+      inputsRef.current[0]?.focus();
+    }
+  }
 
   async function handleResend() {
     setResending(true);
     setResendError(null);
     setResendMessage(null);
-
     try {
-      const { error } = await supabase.auth.resend({
-        type: "signup",
-        email,
-      });
-
-      if (error) {
-        setResendError(error.message);
-      } else {
-        setResendMessage("A new confirmation link has been sent to your email.");
-      }
+      const { error } = await supabase.auth.resend({ type: "signup", email });
+      if (error) setResendError(error.message);
+      else setResendMessage("A new verification code has been sent to your email.");
     } catch {
-      setResendError("Failed to resend confirmation email. Please try again.");
+      setResendError("Failed to resend. Please try again.");
     } finally {
       setResending(false);
     }
   }
 
-  if (verified) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
-        <div className="relative w-full max-w-md text-center">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-500/20 rounded-2xl mb-6">
-            <CheckCircle2 className="w-10 h-10 text-emerald-400" strokeWidth={1.5} />
-          </div>
-          <h1 className="text-2xl font-bold text-white mb-3">Email Verified!</h1>
-          <p className="text-slate-400 mb-8">
-            Your email has been confirmed. You can now sign in to your account.
-          </p>
-          <button
-            onClick={onSwitchToSignIn}
-            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-emerald-500 text-white rounded-xl font-medium hover:from-blue-600 hover:to-emerald-600 transition-all shadow-lg shadow-blue-500/20"
-          >
-            Continue to Sign In
-            <ArrowRight className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const codeComplete = digits.join("").length === CODE_LENGTH;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-6">
@@ -81,7 +116,7 @@ export default function EmailVerification({ email, onSwitchToSignIn }: Props) {
             <Scale className="w-9 h-9 text-white" strokeWidth={1.5} />
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight">Verify Your Email</h1>
-          <p className="text-slate-400 mt-2">One last step before you can sign in</p>
+          <p className="text-slate-400 mt-2">Enter the code we sent to your inbox</p>
         </div>
 
         <div className="bg-slate-800/70 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl p-8">
@@ -89,36 +124,65 @@ export default function EmailVerification({ email, onSwitchToSignIn }: Props) {
             <div className="w-16 h-16 bg-blue-500/20 rounded-2xl flex items-center justify-center mb-4">
               <MailCheck className="w-8 h-8 text-blue-400" strokeWidth={1.5} />
             </div>
-            <p className="text-sm text-slate-300 mb-2">
-              We've sent a confirmation link to
-            </p>
-            <p className="text-base font-medium text-white mb-4 break-all">{email}</p>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              Click the link in the email to verify your account. Once verified, you'll be able to sign in.
-            </p>
+            <p className="text-sm text-slate-300 mb-1">We sent a 6-digit verification code to</p>
+            <p className="text-base font-medium text-white break-all">{email}</p>
           </div>
 
-          <div className="space-y-3 p-4 bg-slate-900/50 rounded-xl border border-slate-700/50">
-            <p className="text-xs text-slate-500 text-center">Didn't receive the email?</p>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
+              {digits.map((digit, index) => (
+                <input
+                  key={index}
+                  ref={(el) => { inputsRef.current[index] = el; }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  value={digit}
+                  onChange={(e) => handleChange(index, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  className="w-11 h-14 sm:w-12 sm:h-14 text-center text-2xl font-bold bg-slate-900/50 border border-slate-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-transparent transition-all"
+                />
+              ))}
+            </div>
+
+            {error && (
+              <div className="flex items-start gap-2 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-400">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading || !codeComplete}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-emerald-500 text-white rounded-xl font-medium hover:from-blue-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/20"
+            >
+              {loading ? (
+                <><Loader2 className="w-5 h-5 animate-spin" /> Verifying...</>
+              ) : (
+                <>Verify Email <ArrowRight className="w-5 h-5" /></>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 space-y-3 p-4 bg-slate-900/50 rounded-xl border border-slate-700/50">
+            <p className="text-xs text-slate-500 text-center">Didn't receive the code?</p>
             <button
               onClick={handleResend}
               disabled={resending}
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-700 text-white rounded-lg text-sm font-medium hover:bg-slate-600 disabled:opacity-50 transition-all"
             >
               {resending ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Resending...
-                </>
+                <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
               ) : (
-                "Resend confirmation email"
+                <><RefreshCw className="w-4 h-4" /> Resend code</>
               )}
             </button>
           </div>
 
           {resendMessage && (
             <div className="mt-4 flex items-start gap-2 px-4 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-sm text-emerald-400">
-              <CheckCircle2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <MailCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
               <span>{resendMessage}</span>
             </div>
           )}
@@ -132,10 +196,7 @@ export default function EmailVerification({ email, onSwitchToSignIn }: Props) {
 
           <p className="mt-6 text-center text-sm text-slate-400">
             Already verified?{" "}
-            <button
-              onClick={onSwitchToSignIn}
-              className="text-blue-400 hover:underline font-medium transition-colors"
-            >
+            <button onClick={onSwitchToSignIn} className="text-blue-400 hover:underline font-medium transition-colors">
               Sign in
             </button>
           </p>
