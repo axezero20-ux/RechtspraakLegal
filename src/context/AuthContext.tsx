@@ -89,15 +89,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
-      // Detect email confirmation: a session appears via a redirect (not an explicit sign-in)
-      // and the user was not previously logged in.
-      if (event === "SIGNED_IN" && newSession?.user?.email_confirmed_at && !session) {
-        // This is the email-confirmation redirect — sign them out and show the confirmed landing page
+      // Detect email confirmation via redirect link. The confirmation URL contains
+      // type=signup in the hash. When that triggers a SIGNED_IN, sign the user out
+      // and show the confirmation landing page instead of auto-logging them in.
+      const hash = window.location.hash;
+      const isEmailConfirmationRedirect =
+        hash.includes("type=signup") || hash.includes("type=invite");
+
+      if (event === "SIGNED_IN" && isEmailConfirmationRedirect) {
         supabase.auth.signOut().then(() => {
           setSession(null);
           setProfile(null);
           setEmailConfirmed(true);
           setLoading(false);
+          // Clean the hash so a future normal sign-in isn't mistaken for a confirmation
+          history.replaceState(null, "", window.location.pathname);
         });
         return;
       }
