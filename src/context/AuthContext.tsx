@@ -27,6 +27,7 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<{ error: string | null; needsEmailConfirmation: boolean }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  verifyEmailOtp: (email: string, token: string) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -170,6 +171,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setEmailConfirmed(false);
   }
 
+  async function verifyEmailOtp(email: string, token: string): Promise<{ error: string | null }> {
+    const { error } = await supabase.auth.verifyOtp({ email, token, type: "signup" });
+    if (error) return { error: error.message };
+    return { error: null };
+  }
+
   async function refreshProfile() {
     if (session?.user) {
       await fetchProfile(session.user.id);
@@ -187,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signIn,
     signOut,
     refreshProfile,
+    verifyEmailOtp,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
