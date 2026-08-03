@@ -181,6 +181,14 @@ export interface CaseView {
   updated_at: string;
 }
 
+export interface EcliPin {
+  id: string;
+  user_id: string;
+  ecli: string;
+  title: string | null;
+  created_at: string;
+}
+
 export type SubscriptionPlan = "free" | "pro";
 
 export interface Subscription {

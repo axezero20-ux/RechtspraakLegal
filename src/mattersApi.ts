@@ -2,7 +2,7 @@ import { supabase } from "./lib/supabase";
 import type {
   Matter, MatterItem, MatterChat, ChatMessage, Subscription,
   MatterSearch, MatterComparison, MatterUpload, SearchResult, CaseComparison,
-  CaseView, CaseAnalysis, PrecedentAnalysis,
+  CaseView, CaseAnalysis, PrecedentAnalysis, EcliPin,
 } from "./types";
 
 // ── Matters ──────────────────────────────────────────────────────────────────
@@ -299,5 +299,31 @@ export async function fetchAllCaseViews(): Promise<CaseView[]> {
 
 export async function deleteCaseView(ecli: string): Promise<void> {
   const { error } = await supabase.from("case_views").delete().eq("ecli", ecli);
+  if (error) throw new Error(error.message);
+}
+
+// ── ECLI Pins (ECLI Code panel pinned cases, separate from case_views) ───────
+
+export async function fetchEcliPins(): Promise<EcliPin[]> {
+  const { data, error } = await supabase
+    .from("ecli_pins")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []) as EcliPin[];
+}
+
+export async function addEcliPin(ecli: string, title?: string | null): Promise<EcliPin> {
+  const { data, error } = await supabase
+    .from("ecli_pins")
+    .insert({ ecli, title: title || null })
+    .select()
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as EcliPin;
+}
+
+export async function deleteEcliPin(ecli: string): Promise<void> {
+  const { error } = await supabase.from("ecli_pins").delete().eq("ecli", ecli);
   if (error) throw new Error(error.message);
 }
