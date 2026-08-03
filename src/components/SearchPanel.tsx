@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { Search, Calendar, Loader2, FileText, ChevronRight, SlidersHorizontal, X, Save, Trash2, History } from "lucide-react";
-import type { SearchResult, MatterSearch } from "../types";
+import { Search, Calendar, Loader2, FileText, ChevronRight, SlidersHorizontal, X, Save, Trash2, History, Lock, Pin, PinOff } from "lucide-react";
+import type { SearchResult, MatterSearch, SubscriptionPlan, CaseView } from "../types";
 import { searchRechtspraak } from "../api";
-import { fetchMatterSearches, saveMatterSearch, deleteMatterSearch } from "../mattersApi";
+import { fetchMatterSearches, saveMatterSearch, deleteMatterSearch, fetchSubscription, fetchAllCaseViews, deleteCaseView } from "../mattersApi";
 
 interface Props {
   onCaseSelected: (ecli: string) => void;
@@ -58,6 +58,25 @@ export default function SearchPanel({ onCaseSelected, matterId }: Props) {
   const [savedSearches, setSavedSearches] = useState<MatterSearch[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [plan, setPlan] = useState<SubscriptionPlan>("free");
+  const [pinnedCases, setPinnedCases] = useState<CaseView[]>([]);
+  const [showPinned, setShowPinned] = useState(false);
+
+  useEffect(() => {
+    fetchSubscription()
+      .then((sub) => setPlan(sub?.plan || "free"))
+      .catch(() => setPlan("free"));
+    loadPinnedCases();
+  }, []);
+
+  const loadPinnedCases = useCallback(async () => {
+    try {
+      const cases = await fetchAllCaseViews();
+      setPinnedCases(cases);
+    } catch {
+      // ignore
+    }
+  }, []);
 
   function updateFilterCount() {
     let count = 0;
@@ -124,6 +143,15 @@ export default function SearchPanel({ onCaseSelected, matterId }: Props) {
       // ignore
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleUnpinCase(ecli: string) {
+    try {
+      await deleteCaseView(ecli);
+      setPinnedCases((prev) => prev.filter((c) => c.ecli !== ecli));
+    } catch {
+      // ignore
     }
   }
 
@@ -207,13 +235,28 @@ export default function SearchPanel({ onCaseSelected, matterId }: Props) {
                 onClick={() => setShowHistory(!showHistory)}
                 title="Search history"
                 className={`flex items-center justify-center px-3 py-2.5 rounded-lg border text-sm transition-all ${
-                  showHistory ? "bg-blue-50 border-blue-300 text-blue-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  showHistory ? "bg-blue-50 border-blue-300 text-blue-600" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
                 }`}
               >
                 <History className="w-4 h-4" />
               </button>
             </>
           )}
+          <button
+            type="button"
+            onClick={() => { setShowPinned(!showPinned); if (!showPinned) loadPinnedCases(); }}
+            title="Pinned cases"
+            className={`flex items-center justify-center px-3 py-2.5 rounded-lg border text-sm transition-all ${
+              showPinned ? "bg-amber-50 border-amber-300 text-amber-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+            }`}
+          >
+            <Pin className="w-4 h-4" />
+            {pinnedCases.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] rounded-full">
+                {pinnedCases.length}
+              </span>
+            )}
+          </button>
         </div>
 
         {showFilters && (
@@ -315,6 +358,12 @@ export default function SearchPanel({ onCaseSelected, matterId }: Props) {
               <X className="w-4 h-4" />
             </button>
           </div>
+          {plan === "free" && (
+            <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-[11px] text-blue-700">
+              <Lock className="w-3 h-3 flex-shrink-0" />
+              <span>Free plan keeps only the 1 most recent search. Upgrade to Pro for unlimited history.</span>
+            </div>
+          )}
           {savedSearches.length === 0 ? (
             <p className="text-xs text-slate-400 text-center py-2">No saved searches yet. Run a search and click Save.</p>
           ) : (
@@ -334,6 +383,50 @@ export default function SearchPanel({ onCaseSelected, matterId }: Props) {
                     className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pinned cases */}
+      {showPinned && (
+        <div className="mt-4 p-4 bg-amber-50/50 rounded-lg border border-amber-200">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-slate-600">Pinned cases ({pinnedCases.length})</span>
+            <button onClick={() => setShowPinned(false)} className="text-slate-400 hover:text-slate-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {plan === "free" && (
+            <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1.5 bg-amber-100 border border-amber-300 rounded-md text-[11px] text-amber-800">
+              <Lock className="w-3 h-3 flex-shrink-0" />
+              <span>Free plan allows only 1 pinned case. Upgrade to Pro for unlimited pins.</span>
+            </div>
+          )}
+          {pinnedCases.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-2">No pinned cases yet. Open a case and click Save to pin it.</p>
+          ) : (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {pinnedCases.map((c) => (
+                <div key={c.id} className="group flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 hover:shadow-sm transition-all">
+                  <button onClick={() => { onCaseSelected(c.ecli); setShowPinned(false); }} className="flex-1 text-left min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Pin className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                      <span className="text-[10px] font-mono text-blue-600 font-medium truncate">{c.ecli}</span>
+                    </div>
+                    <span className="text-xs text-slate-700 block truncate">
+                      {c.title || c.ecli}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => handleUnpinCase(c.ecli)}
+                    title="Unpin case"
+                    className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <PinOff className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ))}
