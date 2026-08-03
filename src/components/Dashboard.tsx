@@ -2,17 +2,19 @@ import { useState } from "react";
 import {
   Scale, Search, FileText, Upload, Settings, Sparkles, GitCompare, HelpCircle, LogOut,
 } from "lucide-react";
-import type { ApiConfig, CaseContent } from "../types";
+import type { ApiConfig, CaseContent, Matter } from "../types";
 import SearchPanel from "./SearchPanel";
 import EcliPanel from "./EcliPanel";
 import PdfUploadPanel from "./PdfUploadPanel";
 import CaseViewer from "./CaseViewer";
 import CaseComparisonPanel from "./CaseComparisonPanel";
 import HelpPanel from "./HelpPanel";
+import MattersSidebar from "./MattersSidebar";
+import MatterWorkspace from "./MatterWorkspace";
 import { useAuth } from "../context/AuthContext";
 
-type View = "search" | "ecli" | "upload" | "compare" | "help";
-type Screen = "main" | "case";
+type View = "search" | "ecli" | "compare" | "upload" | "help";
+type Screen = "main" | "case" | "matter";
 
 interface Props {
   config: ApiConfig;
@@ -24,6 +26,7 @@ export default function Dashboard({ config, onSettings }: Props) {
   const [view, setView] = useState<View>("search");
   const [screen, setScreen] = useState<Screen>("main");
   const [selectedEcli, setSelectedEcli] = useState<string | null>(null);
+  const [activeMatter, setActiveMatter] = useState<Matter | null>(null);
 
   function handleCaseSelected(ecli: string) {
     setSelectedEcli(ecli);
@@ -35,9 +38,18 @@ export default function Dashboard({ config, onSettings }: Props) {
     setScreen("case");
   }
 
-  function handleBack() {
+  function handleBackToMain() {
     setScreen("main");
     setSelectedEcli(null);
+  }
+
+  function handleSelectMatter(matter: Matter | null) {
+    setActiveMatter(matter);
+    if (matter) {
+      setScreen("matter");
+    } else {
+      setScreen("main");
+    }
   }
 
   const navItems = [
@@ -51,7 +63,7 @@ export default function Dashboard({ config, onSettings }: Props) {
   return (
     <div className="h-screen flex flex-col bg-slate-100">
       {/* Top bar */}
-      <header className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200 shadow-sm">
+      <header className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-lg flex items-center justify-center">
             <Scale className="w-5 h-5 text-white" strokeWidth={1.5} />
@@ -98,20 +110,35 @@ export default function Dashboard({ config, onSettings }: Props) {
 
       {/* Main content */}
       {screen === "case" && selectedEcli ? (
-        <div className="flex-1 overflow-hidden p-6">
-          <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
-            <CaseViewer ecli={selectedEcli} config={config} onBack={handleBack} onCaseSelect={handleCaseSelected} />
+        <div className="flex-1 flex overflow-hidden">
+          <MattersSidebar activeMatterId={activeMatter?.id || null} onSelectMatter={handleSelectMatter} />
+          <div className="flex-1 overflow-hidden p-6">
+            <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
+              <CaseViewer ecli={selectedEcli} config={config} onBack={handleBackToMain} onCaseSelect={handleCaseSelected} />
+            </div>
+          </div>
+        </div>
+      ) : screen === "matter" && activeMatter ? (
+        <div className="flex-1 flex overflow-hidden">
+          <MattersSidebar activeMatterId={activeMatter.id} onSelectMatter={handleSelectMatter} />
+          <div className="flex-1 overflow-hidden p-6">
+            <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
+              <MatterWorkspace matter={activeMatter} config={config} onBack={handleBackToMain} onCaseSelect={handleCaseSelected} />
+            </div>
           </div>
         </div>
       ) : (
         <div className="flex-1 flex overflow-hidden">
-          {/* Sidebar */}
-          <nav className="w-56 bg-white border-r border-slate-200 p-4 flex flex-col gap-1">
+          {/* Matters sidebar */}
+          <MattersSidebar activeMatterId={null} onSelectMatter={handleSelectMatter} />
+
+          {/* Tool sidebar */}
+          <nav className="w-48 bg-white border-r border-slate-200 p-3 flex flex-col gap-1 flex-shrink-0">
             {navItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setView(item.id)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   view === item.id
                     ? "bg-blue-50 text-blue-600"
                     : "text-slate-600 hover:bg-slate-50"

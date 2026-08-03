@@ -104,3 +104,46 @@ export interface PrecedentAnalysis {
   precedentSummary: string;
   rawAnalysis?: string;
 }
+
+// ── Matters / Workspace Types ───────────────────────────────────────────────
+
+export type MatterStatus = "active" | "archived";
+
+export interface Matter {
+  id: string;
+  user_id: string;
+  title: string;
+  client_ref: string | null;
+  jurisdiction: string | null;
+  status: MatterStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export type MatterItemType = "case" | "article" | "note" | "document" | "timeline";
+
+export interface MatterItem {
+  id: string;
+  matter_id: string;
+  type: MatterItemType;
+  ecli: string | null;
+  article_code: string | null;
+  content: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface MatterChat {
+  id: string;
+  matter_id: string;
+  messages: ChatMessage[] | null;
+  updated_at: string;
+}
+
+export type SubscriptionPlan = "free" | "pro";
+
+export interface Subscription {
+  user_id: string;
+  plan: SubscriptionPlan;
+  status: string;
+  current_period_end: string | null;
+}
