@@ -1,20 +1,14 @@
 import { useState } from "react";
 import {
-  Scale, Search, FileText, Upload, Settings, Sparkles, GitCompare, HelpCircle, LogOut,
+  Scale, Settings, Sparkles, LogOut, MessageSquare, FolderOpen,
 } from "lucide-react";
 import type { ApiConfig, CaseContent, Matter } from "../types";
-import SearchPanel from "./SearchPanel";
-import EcliPanel from "./EcliPanel";
-import PdfUploadPanel from "./PdfUploadPanel";
 import CaseViewer from "./CaseViewer";
-import CaseComparisonPanel from "./CaseComparisonPanel";
-import HelpPanel from "./HelpPanel";
 import MattersSidebar from "./MattersSidebar";
 import MatterWorkspace from "./MatterWorkspace";
 import { useAuth } from "../context/AuthContext";
 
-type View = "search" | "ecli" | "compare" | "upload" | "help";
-type Screen = "main" | "case" | "matter";
+type Screen = "main" | "case";
 
 interface Props {
   config: ApiConfig;
@@ -23,7 +17,6 @@ interface Props {
 
 export default function Dashboard({ config, onSettings }: Props) {
   const { profile, signOut } = useAuth();
-  const [view, setView] = useState<View>("search");
   const [screen, setScreen] = useState<Screen>("main");
   const [selectedEcli, setSelectedEcli] = useState<string | null>(null);
   const [activeMatter, setActiveMatter] = useState<Matter | null>(null);
@@ -45,20 +38,9 @@ export default function Dashboard({ config, onSettings }: Props) {
 
   function handleSelectMatter(matter: Matter | null) {
     setActiveMatter(matter);
-    if (matter) {
-      setScreen("matter");
-    } else {
-      setScreen("main");
-    }
+    setScreen("main");
+    setSelectedEcli(null);
   }
-
-  const navItems = [
-    { id: "search" as View, label: "Search", icon: Search },
-    { id: "ecli" as View, label: "ECLI Code", icon: FileText },
-    { id: "compare" as View, label: "Compare Cases", icon: GitCompare },
-    { id: "upload" as View, label: "Upload Document", icon: Upload },
-    { id: "help" as View, label: "Help", icon: HelpCircle },
-  ];
 
   return (
     <div className="h-screen flex flex-col bg-slate-100">
@@ -109,59 +91,52 @@ export default function Dashboard({ config, onSettings }: Props) {
       </header>
 
       {/* Main content */}
-      {screen === "case" && selectedEcli ? (
-        <div className="flex-1 flex overflow-hidden">
-          <MattersSidebar activeMatterId={activeMatter?.id || null} onSelectMatter={handleSelectMatter} />
-          <div className="flex-1 overflow-hidden p-6">
-            <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
+      <div className="flex-1 flex overflow-hidden">
+        <MattersSidebar activeMatterId={activeMatter?.id || null} onSelectMatter={handleSelectMatter} />
+
+        <div className="flex-1 overflow-hidden p-6">
+          <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
+            {screen === "case" && selectedEcli ? (
               <CaseViewer ecli={selectedEcli} config={config} onBack={handleBackToMain} onCaseSelect={handleCaseSelected} />
-            </div>
+            ) : activeMatter ? (
+              <MatterWorkspace
+                matter={activeMatter}
+                config={config}
+                onBack={handleBackToMain}
+                onCaseSelect={handleCaseSelected}
+                onCaseLoaded={handleCaseLoaded}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-50 to-emerald-50 rounded-2xl flex items-center justify-center mb-4">
+                  <FolderOpen className="w-8 h-8 text-blue-400" strokeWidth={1.2} />
+                </div>
+                <h2 className="text-lg font-semibold text-slate-700 mb-2">Select a matter to begin</h2>
+                <p className="text-sm text-slate-400 max-w-md">
+                  Create a new matter from the sidebar, or select an existing one. All your legal research tools — search, ECLI lookup, case comparison, document upload, notes, and AI chat — live inside each matter.
+                </p>
+                <div className="flex flex-wrap gap-6 mt-8 justify-center max-w-lg">
+                  {[
+                    { icon: "Search", label: "Search cases" },
+                    { icon: "ECLI", label: "Load by ECLI" },
+                    { icon: "Compare", label: "Compare cases" },
+                    { icon: "Upload", label: "Upload documents" },
+                    { icon: "Notes", label: "Pin notes" },
+                    { icon: "Chat", label: "AI chat per matter" },
+                  ].map((f) => (
+                    <div key={f.label} className="flex flex-col items-center gap-1.5 text-slate-500">
+                      <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+                        <span className="text-xs font-medium text-slate-600">{f.icon}</span>
+                      </div>
+                      <span className="text-xs">{f.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      ) : screen === "matter" && activeMatter ? (
-        <div className="flex-1 flex overflow-hidden">
-          <MattersSidebar activeMatterId={activeMatter.id} onSelectMatter={handleSelectMatter} />
-          <div className="flex-1 overflow-hidden p-6">
-            <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
-              <MatterWorkspace matter={activeMatter} config={config} onBack={handleBackToMain} onCaseSelect={handleCaseSelected} />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="flex-1 flex overflow-hidden">
-          {/* Matters sidebar */}
-          <MattersSidebar activeMatterId={null} onSelectMatter={handleSelectMatter} />
-
-          {/* Tool sidebar */}
-          <nav className="w-48 bg-white border-r border-slate-200 p-3 flex flex-col gap-1 flex-shrink-0">
-            {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setView(item.id)}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                  view === item.id
-                    ? "bg-blue-50 text-blue-600"
-                    : "text-slate-600 hover:bg-slate-50"
-                }`}
-              >
-                <item.icon className="w-4 h-4" />
-                {item.label}
-              </button>
-            ))}
-          </nav>
-
-          {/* Content area */}
-          <div className="flex-1 p-6 overflow-hidden">
-            <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
-              {view === "search" && <SearchPanel onCaseSelected={handleCaseSelected} />}
-              {view === "ecli" && <EcliPanel onCaseLoaded={handleCaseLoaded} />}
-              {view === "compare" && <CaseComparisonPanel config={config} />}
-              {view === "upload" && <PdfUploadPanel config={config} />}
-              {view === "help" && <HelpPanel />}
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

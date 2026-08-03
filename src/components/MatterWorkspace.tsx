@@ -2,27 +2,33 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ArrowLeft, Plus, FileText, BookOpen, StickyNote, MessageSquare,
   Trash2, Loader2, Send, X, AlertCircle, Scale, Sparkles, Search,
+  GitCompare, Upload,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ApiConfig, Matter, MatterItem, ChatMessage, SearchResult } from "../types";
+import type { ApiConfig, Matter, MatterItem, ChatMessage, SearchResult, CaseContent } from "../types";
 import {
   fetchMatterItems, addMatterItem, deleteMatterItem,
   fetchMatterChat, saveMatterChat, clearMatterChat,
 } from "../mattersApi";
 import { searchRechtspraak, getCaseContent, flexibleChat } from "../api";
+import SearchPanel from "./SearchPanel";
+import EcliPanel from "./EcliPanel";
+import CaseComparisonPanel from "./CaseComparisonPanel";
+import PdfUploadPanel from "./PdfUploadPanel";
 
 interface Props {
   matter: Matter;
   config: ApiConfig;
   onBack: () => void;
   onCaseSelect: (ecli: string) => void;
+  onCaseLoaded: (content: CaseContent) => void;
 }
 
-type Tab = "cases" | "articles" | "notes" | "chat";
+type Tab = "search" | "ecli" | "compare" | "upload" | "cases" | "articles" | "notes" | "chat";
 
-export default function MatterWorkspace({ matter, config, onBack, onCaseSelect }: Props) {
-  const [tab, setTab] = useState<Tab>("cases");
+export default function MatterWorkspace({ matter, config, onBack, onCaseSelect, onCaseLoaded }: Props) {
+  const [tab, setTab] = useState<Tab>("search");
   const [items, setItems] = useState<MatterItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,11 +52,15 @@ export default function MatterWorkspace({ matter, config, onBack, onCaseSelect }
   const articleItems = items.filter((i) => i.type === "article");
   const noteItems = items.filter((i) => i.type === "note");
 
-  const tabs = [
-    { id: "cases" as Tab, label: "Cases", icon: FileText, count: caseItems.length },
-    { id: "articles" as Tab, label: "Articles", icon: BookOpen, count: articleItems.length },
-    { id: "notes" as Tab, label: "Notes", icon: StickyNote, count: noteItems.length },
-    { id: "chat" as Tab, label: "Chat", icon: MessageSquare },
+  const tabs: { id: Tab; label: string; icon: typeof FileText; count?: number }[] = [
+    { id: "search", label: "Search", icon: Search },
+    { id: "ecli", label: "ECLI Code", icon: FileText },
+    { id: "compare", label: "Compare", icon: GitCompare },
+    { id: "upload", label: "Upload", icon: Upload },
+    { id: "cases", label: "Cases", icon: FileText, count: caseItems.length },
+    { id: "articles", label: "Articles", icon: BookOpen, count: articleItems.length },
+    { id: "notes", label: "Notes", icon: StickyNote, count: noteItems.length },
+    { id: "chat", label: "Chat", icon: MessageSquare },
   ];
 
   async function handleDeleteItem(id: string) {
@@ -63,9 +73,9 @@ export default function MatterWorkspace({ matter, config, onBack, onCaseSelect }
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200">
+      <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200 flex-shrink-0">
         <div className="flex-1 min-w-0">
           <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-2 transition-colors">
             <ArrowLeft className="w-4 h-4" /> Back to matters
@@ -83,7 +93,7 @@ export default function MatterWorkspace({ matter, config, onBack, onCaseSelect }
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 mt-3 border-b border-slate-200">
+      <div className="flex gap-1 mt-3 border-b border-slate-200 flex-shrink-0 overflow-x-auto">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -105,6 +115,10 @@ export default function MatterWorkspace({ matter, config, onBack, onCaseSelect }
 
       {/* Content */}
       <div className="flex-1 overflow-hidden mt-3">
+        {tab === "search" && <SearchPanel onCaseSelected={onCaseSelect} />}
+        {tab === "ecli" && <EcliPanel onCaseLoaded={onCaseLoaded} />}
+        {tab === "compare" && <CaseComparisonPanel config={config} />}
+        {tab === "upload" && <PdfUploadPanel config={config} />}
         {tab === "cases" && (
           <CasesTab matterId={matter.id} items={caseItems} loading={loading} onAdd={loadItems} onDelete={handleDeleteItem} onCaseSelect={onCaseSelect} />
         )}
@@ -522,7 +536,6 @@ function ChatTab({ matterId, config }: { matterId: string; config: ApiConfig }) 
     loadChat();
   }, [matterId]);
 
-  // Debounced save: persist chat whenever messages change (after initial load)
   useEffect(() => {
     if (!loadedRef.current) return;
     const timer = setTimeout(async () => {
