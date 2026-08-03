@@ -287,3 +287,17 @@ export async function upsertCaseView(ecli: string, updates: {
   if (error) throw new Error(error.message);
   return data as CaseView;
 }
+
+export async function fetchAllCaseViews(): Promise<CaseView[]> {
+  const { data, error } = await supabase
+    .from("case_views")
+    .select("*")
+    .order("updated_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []) as CaseView[];
+}
+
+export async function deleteCaseView(ecli: string): Promise<void> {
+  const { error } = await supabase.from("case_views").delete().eq("ecli", ecli);
+  if (error) throw new Error(error.message);
+}
