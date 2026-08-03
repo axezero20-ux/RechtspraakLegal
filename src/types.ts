@@ -168,6 +168,19 @@ export interface MatterUpload {
   created_at: string;
 }
 
+export interface CaseView {
+  id: string;
+  user_id: string;
+  ecli: string;
+  title: string | null;
+  summary: string | null;
+  analysis: CaseAnalysis | null;
+  precedents: PrecedentAnalysis | null;
+  chat: ChatMessage[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export type SubscriptionPlan = "free" | "pro";
 
 export interface Subscription {

@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import {
   Loader2, Send, FileText, Sparkles, Download, ArrowLeft,
-  MessageSquare, ScrollText, AlertCircle, Scale, Link2, Trash2, X,
+  MessageSquare, ScrollText, AlertCircle, Scale, Link2, Trash2, X, Save,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ApiConfig, CaseContent, ChatMessage, CaseAnalysis, PrecedentAnalysis } from "../types";
 import { getCaseContent, flexibleChat, summarizeCase } from "../api";
 import { exportToPDF } from "../pdfExport";
+import { fetchCaseView, upsertCaseView } from "../mattersApi";
 import CaseAnalysisPanel from "./CaseAnalysisPanel";
 import SimilarPrecedentsPanel from "./SimilarPrecedentsPanel";
 
@@ -34,6 +35,9 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
   const [analysis, setAnalysis] = useState<CaseAnalysis | null>(null);
   const [precedents, setPrecedents] = useState<PrecedentAnalysis | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,9 +56,19 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
     setMessages([]);
     setAnalysis(null);
     setPrecedents(null);
+    setSaveError(null);
+    setLastSavedAt(null);
     try {
       const content = await getCaseContent(ecli);
       setCaseContent(content);
+      const saved = await fetchCaseView(ecli);
+      if (saved) {
+        setSummary(saved.summary);
+        setAnalysis(saved.analysis);
+        setPrecedents(saved.precedents);
+        setMessages(saved.chat || []);
+        setLastSavedAt(saved.updated_at);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load case");
     } finally {
@@ -101,6 +115,25 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
       }]);
     } finally {
       setChatLoading(false);
+    }
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const saved = await upsertCaseView(ecli, {
+        title: caseContent?.metadata?.title || null,
+        summary,
+        analysis,
+        precedents,
+        chat: messages.length > 0 ? messages : null,
+      });
+      setLastSavedAt(saved.updated_at);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -175,14 +208,36 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
             {meta?.subject && <span>Subject: {meta.subject}</span>}
           </div>
         </div>
-        <button
-          onClick={handleExport}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition-all flex-shrink-0"
-        >
-          <Download className="w-4 h-4" />
-          Export PDF
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {lastSavedAt && (
+            <span className="text-xs text-slate-400">
+              Saved {new Date(lastSavedAt).toLocaleString("nl-NL")}
+            </span>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-all"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            Save
+          </button>
+          <button
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-medium hover:bg-slate-900 transition-all"
+          >
+            <Download className="w-4 h-4" />
+            Export PDF
+          </button>
+        </div>
       </div>
+
+      {saveError && (
+        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 px-4 py-2 rounded-lg mt-2">
+          <AlertCircle className="w-3.5 h-3.5" />
+          {saveError}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 mt-4 border-b border-slate-200 overflow-x-auto">

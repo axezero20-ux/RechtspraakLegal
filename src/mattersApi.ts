@@ -2,6 +2,7 @@ import { supabase } from "./lib/supabase";
 import type {
   Matter, MatterItem, MatterChat, ChatMessage, Subscription,
   MatterSearch, MatterComparison, MatterUpload, SearchResult, CaseComparison,
+  CaseView, CaseAnalysis, PrecedentAnalysis,
 } from "./types";
 
 // ── Matters ──────────────────────────────────────────────────────────────────
@@ -257,4 +258,32 @@ export async function updateMatterUpload(id: string, updates: Partial<Pick<Matte
 export async function deleteMatterUpload(id: string): Promise<void> {
   const { error } = await supabase.from("matter_uploads").delete().eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+// ── Case Views (saved case work: summary, analysis, precedents, chat) ──────────
+
+export async function fetchCaseView(ecli: string): Promise<CaseView | null> {
+  const { data, error } = await supabase
+    .from("case_views")
+    .select("*")
+    .eq("ecli", ecli)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as CaseView | null;
+}
+
+export async function upsertCaseView(ecli: string, updates: {
+  title?: string | null;
+  summary?: string | null;
+  analysis?: CaseAnalysis | null;
+  precedents?: PrecedentAnalysis | null;
+  chat?: ChatMessage[] | null;
+}): Promise<CaseView> {
+  const { data, error } = await supabase
+    .from("case_views")
+    .upsert({ ecli, ...updates }, { onConflict: "user_id,ecli" })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as CaseView;
 }
