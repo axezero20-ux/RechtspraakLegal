@@ -1,14 +1,17 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Search, Plus, X, Loader2, GitCompare, AlertCircle,
   FileText, Scale, CheckCircle2, XCircle, ArrowRight, Sparkles, Download,
+  Save, Trash2, History,
 } from "lucide-react";
-import type { ApiConfig, CaseComparison, CaseContent } from "../types";
+import type { ApiConfig, CaseComparison, CaseContent, MatterComparison } from "../types";
 import { searchRechtspraak, getCaseContent, compareCases } from "../api";
 import { exportComparisonToPDF } from "../pdfExport";
+import { fetchMatterComparisons, saveMatterComparison, deleteMatterComparison } from "../mattersApi";
 
 interface Props {
   config: ApiConfig;
+  matterId?: string;
 }
 
 interface CaseSlot {
@@ -18,7 +21,7 @@ interface CaseSlot {
   error: string | null;
 }
 
-export default function CaseComparisonPanel({ config }: Props) {
+export default function CaseComparisonPanel({ config, matterId }: Props) {
   const [slots, setSlots] = useState<CaseSlot[]>([
     { ecli: "", content: null, loading: false, error: null },
     { ecli: "", content: null, loading: false, error: null },
@@ -30,6 +33,52 @@ export default function CaseComparisonPanel({ config }: Props) {
   const [searchResults, setSearchResults] = useState<{ ecli: string; title: string }[]>([]);
   const [searching, setSearching] = useState(false);
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
+  const [savedComparisons, setSavedComparisons] = useState<MatterComparison[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const loadSavedComparisons = useCallback(async () => {
+    if (!matterId) return;
+    try {
+      const comps = await fetchMatterComparisons(matterId);
+      setSavedComparisons(comps);
+    } catch {
+      // ignore
+    }
+  }, [matterId]);
+
+  useEffect(() => {
+    loadSavedComparisons();
+  }, [loadSavedComparisons]);
+
+  async function handleSaveComparison() {
+    if (!matterId || !comparison) return;
+    setSaving(true);
+    try {
+      const loaded = slots.filter((s) => s.content);
+      const eclis = loaded.map((s) => s.content!.ecli);
+      await saveMatterComparison(matterId, eclis, comparison);
+      await loadSavedComparisons();
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteComparison(id: string) {
+    try {
+      await deleteMatterComparison(id);
+      setSavedComparisons((prev) => prev.filter((c) => c.id !== id));
+    } catch {
+      // ignore
+    }
+  }
+
+  function loadSavedComparison(comp: MatterComparison) {
+    setComparison(comp.result);
+    setShowHistory(false);
+  }
 
   async function handleSearch() {
     if (!searchQuery.trim()) return;
@@ -112,22 +161,41 @@ export default function CaseComparisonPanel({ config }: Props) {
             </button>
           )}
           {comparison && !comparing && (
-            <button
-              onClick={() => {
-                const loaded = slots.filter((s) => s.content);
-                exportComparisonToPDF({
+            <>
+              <button
+                onClick={handleSaveComparison}
+                disabled={saving}
+                title="Save comparison"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-all"
+              >
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                Save
+              </button>
+              <button
+                onClick={() => exportComparisonToPDF({
                   comparison,
-                  cases: loaded.map((s) => ({
+                  cases: slots.filter((s) => s.content).map((s) => ({
                     ecli: s.content!.ecli,
                     metadata: s.content!.metadata as Record<string, string>,
                   })),
-                  title: `Case Comparison (${loaded.length} cases)`,
-                });
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg hover:bg-slate-900 transition-all"
+                  title: `Case Comparison (${slots.filter((s) => s.content).length} cases)`,
+                })}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 text-white text-xs font-medium rounded-lg hover:bg-slate-900 transition-all"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export PDF
+              </button>
+            </>
+          )}
+          {matterId && (
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
+                showHistory ? "bg-blue-50 border-blue-300 text-blue-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
             >
-              <Download className="w-3.5 h-3.5" />
-              Export PDF
+              <History className="w-3.5 h-3.5" />
+              History
             </button>
           )}
           <button
@@ -140,6 +208,42 @@ export default function CaseComparisonPanel({ config }: Props) {
           </button>
         </div>
       </div>
+
+      {/* Saved comparisons */}
+      {showHistory && matterId && (
+        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-slate-600">Saved comparisons ({savedComparisons.length})</span>
+            <button onClick={() => setShowHistory(false)} className="text-slate-400 hover:text-slate-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {savedComparisons.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-2">No saved comparisons yet. Run a comparison and click Save.</p>
+          ) : (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {savedComparisons.map((c) => (
+                <div key={c.id} className="group flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 hover:shadow-sm transition-all">
+                  <button onClick={() => loadSavedComparison(c)} className="flex-1 text-left min-w-0">
+                    <span className="text-xs font-medium text-slate-700 block truncate">
+                      {(c.eclis as string[]).join(" vs ")}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {new Date(c.created_at).toLocaleDateString("nl-NL")}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteComparison(c.id)}
+                    className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Case slots */}
       <div className={`grid gap-3 mt-4 ${slots.length === 2 ? "grid-cols-2" : slots.length === 3 ? "grid-cols-3" : "grid-cols-2 lg:grid-cols-4"}`}>

@@ -139,6 +139,35 @@ export interface MatterChat {
   updated_at: string;
 }
 
+export interface MatterSearch {
+  id: string;
+  matter_id: string;
+  query: string | null;
+  filters: Record<string, unknown> | null;
+  results: SearchResult[];
+  created_at: string;
+}
+
+export interface MatterComparison {
+  id: string;
+  matter_id: string;
+  eclis: string[];
+  result: CaseComparison;
+  created_at: string;
+}
+
+export interface MatterUpload {
+  id: string;
+  matter_id: string;
+  file_name: string;
+  file_type: string | null;
+  file_size: number | null;
+  text_content: string | null;
+  summary: string | null;
+  chat: ChatMessage[] | null;
+  created_at: string;
+}
+
 export type SubscriptionPlan = "free" | "pro";
 
 export interface Subscription {

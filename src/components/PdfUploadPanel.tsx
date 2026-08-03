@@ -1,15 +1,18 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, FileText, AlertCircle, Loader2, Download, Send, MessageSquare, Sparkles, FileUp,
+  Save, Trash2, History, X,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import type { ApiConfig, ChatMessage } from "../types";
+import type { ApiConfig, ChatMessage, MatterUpload } from "../types";
 import { flexibleChat } from "../api";
 import { exportToPDF } from "../pdfExport";
+import { fetchMatterUploads, saveMatterUpload, updateMatterUpload, deleteMatterUpload } from "../mattersApi";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 interface Props {
   config: ApiConfig;
+  matterId?: string;
 }
 
 interface UploadedFile {
@@ -65,7 +68,7 @@ async function extractText(file: File): Promise<string> {
   throw new Error("Unsupported file type. Please upload a PDF, Word document, or text file.");
 }
 
-export default function PdfUploadPanel({ config }: Props) {
+export default function PdfUploadPanel({ config, matterId }: Props) {
   const [file, setFile] = useState<UploadedFile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +81,42 @@ export default function PdfUploadPanel({ config }: Props) {
   const [summary, setSummary] = useState<string | null>(null);
   const [summarizing, setSummarizing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Persistence state
+  const [savedUploads, setSavedUploads] = useState<MatterUpload[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
+
+  const loadSavedUploads = useCallback(async () => {
+    if (!matterId) return;
+    try {
+      const uploads = await fetchMatterUploads(matterId);
+      setSavedUploads(uploads);
+    } catch {
+      // ignore
+    }
+  }, [matterId]);
+
+  useEffect(() => {
+    loadSavedUploads();
+  }, [loadSavedUploads]);
+
+  // Debounced save of chat/summary when they change
+  useEffect(() => {
+    if (!currentUploadId) return;
+    const timer = setTimeout(async () => {
+      try {
+        await updateMatterUpload(currentUploadId, {
+          summary: summary,
+          chat: messages.length > 0 ? messages : null,
+        });
+      } catch {
+        // ignore
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [messages, summary, currentUploadId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -174,6 +213,50 @@ export default function PdfUploadPanel({ config }: Props) {
     setMessages([]);
     setSummary(null);
     setError(null);
+    setCurrentUploadId(null);
+  }
+
+  async function handleSaveUpload() {
+    if (!matterId || !file) return;
+    setSaving(true);
+    try {
+      const upload = await saveMatterUpload(matterId, {
+        file_name: file.name,
+        file_type: file.type,
+        file_size: file.size,
+        text_content: file.text,
+        summary: summary,
+        chat: messages.length > 0 ? messages : null,
+      });
+      setCurrentUploadId(upload.id);
+      await loadSavedUploads();
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteUpload(id: string) {
+    try {
+      await deleteMatterUpload(id);
+      setSavedUploads((prev) => prev.filter((u) => u.id !== id));
+    } catch {
+      // ignore
+    }
+  }
+
+  function loadSavedUpload(upload: MatterUpload) {
+    setFile({
+      name: upload.file_name,
+      type: upload.file_type || "text",
+      size: upload.file_size || 0,
+      text: upload.text_content || "",
+    });
+    setMessages(upload.chat || []);
+    setSummary(upload.summary);
+    setCurrentUploadId(upload.id);
+    setShowHistory(false);
   }
 
   // ── File loaded view ──
@@ -205,8 +288,63 @@ export default function PdfUploadPanel({ config }: Props) {
             >
               Upload New
             </button>
+            {matterId && (
+              <>
+                <button
+                  onClick={handleSaveUpload}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 disabled:opacity-50 transition-all"
+                >
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Save
+                </button>
+                <button
+                  onClick={() => setShowHistory(!showHistory)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                    showHistory ? "bg-blue-50 border-blue-300 text-blue-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <History className="w-3.5 h-3.5" />
+                  History
+                </button>
+              </>
+            )}
           </div>
         </div>
+
+        {/* Saved uploads */}
+        {showHistory && matterId && (
+          <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-slate-600">Saved documents ({savedUploads.length})</span>
+              <button onClick={() => setShowHistory(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {savedUploads.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-2">No saved documents yet. Upload a file and click Save.</p>
+            ) : (
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {savedUploads.map((u) => (
+                  <div key={u.id} className="group flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 hover:shadow-sm transition-all">
+                    <button onClick={() => loadSavedUpload(u)} className="flex-1 text-left min-w-0">
+                      <span className="text-xs font-medium text-slate-700 block truncate">{u.file_name}</span>
+                      <span className="text-[10px] text-slate-400">
+                        {new Date(u.created_at).toLocaleDateString("nl-NL")}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUpload(u.id)}
+                      className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Chat area */}
         <div className="flex-1 overflow-y-auto mt-4 space-y-4">

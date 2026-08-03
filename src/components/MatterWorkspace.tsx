@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   ArrowLeft, Plus, FileText, BookOpen, StickyNote, MessageSquare,
-  Trash2, Loader2, Send, X, AlertCircle, Scale, Sparkles, Search,
+  Trash2, Loader2, Send, X, AlertCircle, Scale, Search,
   GitCompare, Upload,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -115,10 +115,10 @@ export default function MatterWorkspace({ matter, config, onBack, onCaseSelect, 
 
       {/* Content */}
       <div className="flex-1 overflow-hidden mt-3">
-        {tab === "search" && <SearchPanel onCaseSelected={onCaseSelect} />}
+        {tab === "search" && <SearchPanel onCaseSelected={onCaseSelect} matterId={matter.id} />}
         {tab === "ecli" && <EcliPanel onCaseLoaded={onCaseLoaded} />}
-        {tab === "compare" && <CaseComparisonPanel config={config} />}
-        {tab === "upload" && <PdfUploadPanel config={config} />}
+        {tab === "compare" && <CaseComparisonPanel config={config} matterId={matter.id} />}
+        {tab === "upload" && <PdfUploadPanel config={config} matterId={matter.id} />}
         {tab === "cases" && (
           <CasesTab matterId={matter.id} items={caseItems} loading={loading} onAdd={loadItems} onDelete={handleDeleteItem} onCaseSelect={onCaseSelect} />
         )}
@@ -394,9 +394,9 @@ function ArticlesTab({ matterId, items, loading, onAdd, onDelete }: {
                       <BookOpen className="w-4 h-4 text-emerald-500 flex-shrink-0" />
                       <span className="text-xs font-mono text-emerald-600 font-medium">{item.article_code}</span>
                     </div>
-                    <p className="text-sm font-medium text-slate-700">{content?.title as string || ""}</p>
-                    {content?.text && (
-                      <p className="text-xs text-slate-500 mt-1 line-clamp-3">{content.text as string}</p>
+                    <p className="text-sm font-medium text-slate-700">{(content?.title as string) || ""}</p>
+                    {!!content?.text && (
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-3">{String(content.text)}</p>
                     )}
                   </div>
                   <button onClick={() => onDelete(item.id)} className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
@@ -490,7 +490,7 @@ function NotesTab({ matterId, items, loading, onAdd, onDelete }: {
                       <StickyNote className="w-4 h-4 text-amber-500 flex-shrink-0" />
                       <span className="text-[10px] text-slate-400">{new Date(item.created_at).toLocaleString("nl-NL")}</span>
                     </div>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{content?.text as string || ""}</p>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{(content?.text as string) || ""}</p>
                   </div>
                   <button onClick={() => onDelete(item.id)} className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
                     <Trash2 className="w-3.5 h-3.5" />

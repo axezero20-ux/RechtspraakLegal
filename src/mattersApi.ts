@@ -1,5 +1,8 @@
 import { supabase } from "./lib/supabase";
-import type { Matter, MatterItem, MatterChat, ChatMessage, Subscription } from "./types";
+import type {
+  Matter, MatterItem, MatterChat, ChatMessage, Subscription,
+  MatterSearch, MatterComparison, MatterUpload, SearchResult, CaseComparison,
+} from "./types";
 
 // ── Matters ──────────────────────────────────────────────────────────────────
 
@@ -149,4 +152,109 @@ export async function checkMatterLimit(): Promise<{ allowed: boolean; plan: stri
     throw new Error(err.error || `Failed (${response.status})`);
   }
   return response.json();
+}
+
+// ── Matter Searches ──────────────────────────────────────────────────────────
+
+export async function fetchMatterSearches(matterId: string): Promise<MatterSearch[]> {
+  const { data, error } = await supabase
+    .from("matter_searches")
+    .select("*")
+    .eq("matter_id", matterId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []) as MatterSearch[];
+}
+
+export async function saveMatterSearch(
+  matterId: string,
+  query: string | null,
+  filters: Record<string, unknown> | null,
+  results: SearchResult[],
+): Promise<MatterSearch> {
+  const { data, error } = await supabase
+    .from("matter_searches")
+    .insert({ matter_id: matterId, query, filters, results })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as MatterSearch;
+}
+
+export async function deleteMatterSearch(id: string): Promise<void> {
+  const { error } = await supabase.from("matter_searches").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// ── Matter Comparisons ───────────────────────────────────────────────────────
+
+export async function fetchMatterComparisons(matterId: string): Promise<MatterComparison[]> {
+  const { data, error } = await supabase
+    .from("matter_comparisons")
+    .select("*")
+    .eq("matter_id", matterId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []) as MatterComparison[];
+}
+
+export async function saveMatterComparison(
+  matterId: string,
+  eclis: string[],
+  result: CaseComparison,
+): Promise<MatterComparison> {
+  const { data, error } = await supabase
+    .from("matter_comparisons")
+    .insert({ matter_id: matterId, eclis, result })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as MatterComparison;
+}
+
+export async function deleteMatterComparison(id: string): Promise<void> {
+  const { error } = await supabase.from("matter_comparisons").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// ── Matter Uploads ────────────────────────────────────────────────────────────
+
+export async function fetchMatterUploads(matterId: string): Promise<MatterUpload[]> {
+  const { data, error } = await supabase
+    .from("matter_uploads")
+    .select("*")
+    .eq("matter_id", matterId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data || []) as MatterUpload[];
+}
+
+export async function saveMatterUpload(
+  matterId: string,
+  upload: {
+    file_name: string;
+    file_type: string | null;
+    file_size: number | null;
+    text_content: string | null;
+    summary: string | null;
+    chat: ChatMessage[] | null;
+  },
+): Promise<MatterUpload> {
+  const { data, error } = await supabase
+    .from("matter_uploads")
+    .insert({ matter_id: matterId, ...upload })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as MatterUpload;
+}
+
+export async function updateMatterUpload(id: string, updates: Partial<Pick<MatterUpload, "summary" | "chat">>): Promise<void> {
+  const { error } = await supabase.from("matter_uploads").update(updates).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteMatterUpload(id: string): Promise<void> {
+  const { error } = await supabase.from("matter_uploads").delete().eq("id", id);
+  if (error) throw new Error(error.message);
 }

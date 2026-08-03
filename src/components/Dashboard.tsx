@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Scale, Settings, Sparkles, LogOut, MessageSquare, FolderOpen,
+  Scale, Settings, Sparkles, LogOut, FolderOpen,
 } from "lucide-react";
 import type { ApiConfig, CaseContent, Matter } from "../types";
 import CaseViewer from "./CaseViewer";

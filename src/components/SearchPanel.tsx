@@ -1,10 +1,12 @@
-import { useState } from "react";
-import { Search, Calendar, Filter, Loader2, FileText, ChevronRight, SlidersHorizontal, X } from "lucide-react";
-import type { SearchResult } from "../types";
+import { useState, useEffect, useCallback } from "react";
+import { Search, Calendar, Loader2, FileText, ChevronRight, SlidersHorizontal, X, Save, Trash2, History } from "lucide-react";
+import type { SearchResult, MatterSearch } from "../types";
 import { searchRechtspraak } from "../api";
+import { fetchMatterSearches, saveMatterSearch, deleteMatterSearch } from "../mattersApi";
 
 interface Props {
   onCaseSelected: (ecli: string) => void;
+  matterId?: string;
 }
 
 const COURT_OPTIONS = [
@@ -41,7 +43,7 @@ const SUBJECT_OPTIONS = [
   { value: "Vreemdelingenrecht", label: "Vreemdelingenrecht" },
 ];
 
-export default function SearchPanel({ onCaseSelected }: Props) {
+export default function SearchPanel({ onCaseSelected, matterId }: Props) {
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -53,6 +55,9 @@ export default function SearchPanel({ onCaseSelected }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
+  const [savedSearches, setSavedSearches] = useState<MatterSearch[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   function updateFilterCount() {
     let count = 0;
@@ -63,6 +68,20 @@ export default function SearchPanel({ onCaseSelected }: Props) {
     if (subject) count++;
     setActiveFilterCount(count);
   }
+
+  const loadSavedSearches = useCallback(async () => {
+    if (!matterId) return;
+    try {
+      const searches = await fetchMatterSearches(matterId);
+      setSavedSearches(searches);
+    } catch {
+      // ignore
+    }
+  }, [matterId]);
+
+  useEffect(() => {
+    loadSavedSearches();
+  }, [loadSavedSearches]);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -87,6 +106,40 @@ export default function SearchPanel({ onCaseSelected }: Props) {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSaveSearch() {
+    if (!matterId || results.length === 0) return;
+    setSaving(true);
+    try {
+      const filters: Record<string, unknown> = {};
+      if (fromDate) filters.from = fromDate;
+      if (toDate) filters.to = toDate;
+      if (caseType) filters.type = caseType;
+      if (court) filters.court = court;
+      if (subject) filters.subject = subject;
+      await saveMatterSearch(matterId, query || null, Object.keys(filters).length > 0 ? filters : null, results);
+      await loadSavedSearches();
+    } catch {
+      // ignore
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteSearch(id: string) {
+    try {
+      await deleteMatterSearch(id);
+      setSavedSearches((prev) => prev.filter((s) => s.id !== id));
+    } catch {
+      // ignore
+    }
+  }
+
+  function loadSavedSearch(search: MatterSearch) {
+    setResults(search.results);
+    setQuery(search.query || "");
+    setShowHistory(false);
   }
 
   function clearFilters() {
@@ -138,6 +191,29 @@ export default function SearchPanel({ onCaseSelected }: Props) {
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Search
           </button>
+          {matterId && (
+            <>
+              <button
+                type="button"
+                onClick={handleSaveSearch}
+                disabled={saving || results.length === 0}
+                title="Save search results"
+                className="flex items-center justify-center px-3 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-sm hover:bg-slate-50 disabled:opacity-50 transition-all"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowHistory(!showHistory)}
+                title="Search history"
+                className={`flex items-center justify-center px-3 py-2.5 rounded-lg border text-sm transition-all ${
+                  showHistory ? "bg-blue-50 border-blue-300 text-blue-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <History className="w-4 h-4" />
+              </button>
+            </>
+          )}
         </div>
 
         {showFilters && (
@@ -227,6 +303,42 @@ export default function SearchPanel({ onCaseSelected }: Props) {
       {error && (
         <div className="mt-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700">
           {error}
+        </div>
+      )}
+
+      {/* Saved searches */}
+      {showHistory && matterId && (
+        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-slate-600">Saved searches ({savedSearches.length})</span>
+            <button onClick={() => setShowHistory(false)} className="text-slate-400 hover:text-slate-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {savedSearches.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-2">No saved searches yet. Run a search and click Save.</p>
+          ) : (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {savedSearches.map((s) => (
+                <div key={s.id} className="group flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 hover:shadow-sm transition-all">
+                  <button onClick={() => loadSavedSearch(s)} className="flex-1 text-left min-w-0">
+                    <span className="text-xs font-medium text-slate-700 block truncate">
+                      {s.query || "(no query)"}
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {s.results.length} results · {new Date(s.created_at).toLocaleDateString("nl-NL")}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteSearch(s.id)}
+                    className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
