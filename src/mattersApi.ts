@@ -260,6 +260,11 @@ export async function deleteMatterUpload(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function toggleMatterUploadPin(id: string, pinned: boolean): Promise<void> {
+  const { error } = await supabase.from("matter_uploads").update({ pinned }).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 // ── Case Views (saved case work: summary, analysis, precedents, chat) ──────────
 
 export async function fetchCaseView(ecli: string): Promise<CaseView | null> {

@@ -166,6 +166,7 @@ export interface MatterUpload {
   summary: string | null;
   chat: ChatMessage[] | null;
   created_at: string;
+  pinned: boolean;
 }
 
 export interface CaseView {

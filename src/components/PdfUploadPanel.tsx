@@ -1,13 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, FileText, AlertCircle, Loader2, Download, Send, MessageSquare, Sparkles, FileUp,
-  Save, Trash2, History, X,
+  Save, Trash2, History, X, Pin, PinOff,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import type { ApiConfig, ChatMessage, MatterUpload } from "../types";
+import type { ApiConfig, ChatMessage, MatterUpload, SubscriptionPlan } from "../types";
 import { flexibleChat } from "../api";
 import { exportToPDF } from "../pdfExport";
-import { fetchMatterUploads, saveMatterUpload, updateMatterUpload, deleteMatterUpload } from "../mattersApi";
+import { fetchMatterUploads, saveMatterUpload, updateMatterUpload, deleteMatterUpload, toggleMatterUploadPin, fetchSubscription } from "../mattersApi";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
 interface Props {
@@ -87,6 +87,8 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
   const [showHistory, setShowHistory] = useState(false);
   const [saving, setSaving] = useState(false);
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
+  const [isPinned, setIsPinned] = useState(false);
+  const [plan, setPlan] = useState<SubscriptionPlan>("free");
 
   const loadSavedUploads = useCallback(async () => {
     if (!matterId) return;
@@ -97,6 +99,12 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
       // ignore
     }
   }, [matterId]);
+
+  useEffect(() => {
+    fetchSubscription()
+      .then((sub) => { if (sub) setPlan(sub.plan); })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadSavedUploads();
@@ -214,6 +222,7 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
     setSummary(null);
     setError(null);
     setCurrentUploadId(null);
+    setIsPinned(false);
   }
 
   async function handleSaveUpload() {
@@ -229,11 +238,24 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
         chat: messages.length > 0 ? messages : null,
       });
       setCurrentUploadId(upload.id);
+      setIsPinned(false);
       await loadSavedUploads();
     } catch {
       // ignore
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleTogglePin() {
+    if (!currentUploadId) return;
+    const next = !isPinned;
+    setIsPinned(next);
+    try {
+      await toggleMatterUploadPin(currentUploadId, next);
+      await loadSavedUploads();
+    } catch {
+      setIsPinned(!next);
     }
   }
 
@@ -256,6 +278,7 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
     setMessages(upload.chat || []);
     setSummary(upload.summary);
     setCurrentUploadId(upload.id);
+    setIsPinned(upload.pinned);
     setShowHistory(false);
   }
 
@@ -291,21 +314,33 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
             {matterId && (
               <>
                 <button
-                  onClick={handleSaveUpload}
-                  disabled={saving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 disabled:opacity-50 transition-all"
+                  onClick={handleTogglePin}
+                  disabled={!currentUploadId}
+                  title={isPinned ? "Unpin document" : "Pin document"}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all disabled:opacity-40 ${
+                    isPinned ? "bg-amber-50 border-amber-300 text-amber-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
                 >
-                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  Save
+                  {isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                  {isPinned ? "Pinned" : "Pin"}
                 </button>
                 <button
                   onClick={() => setShowHistory(!showHistory)}
+                  title="Saved documents"
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
                     showHistory ? "bg-blue-50 border-blue-300 text-blue-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
                   }`}
                 >
                   <History className="w-3.5 h-3.5" />
                   History
+                </button>
+                <button
+                  onClick={handleSaveUpload}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-medium hover:bg-slate-50 disabled:opacity-50 transition-all"
+                >
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Save
                 </button>
               </>
             )}
@@ -326,8 +361,9 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
             ) : (
               <div className="space-y-1 max-h-48 overflow-y-auto">
                 {savedUploads.map((u) => (
-                  <div key={u.id} className="group flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 hover:shadow-sm transition-all">
-                    <button onClick={() => loadSavedUpload(u)} className="flex-1 text-left min-w-0">
+                  <div key={u.id} className={`group flex items-center gap-2 p-2 bg-white rounded-lg border hover:shadow-sm transition-all ${u.pinned ? "border-amber-300 bg-amber-50/30" : "border-slate-200"}`}>
+                    <button onClick={() => loadSavedUpload(u)} className="flex-1 text-left min-w-0 flex items-center gap-1.5">
+                      {u.pinned && <Pin className="w-3 h-3 text-amber-500 flex-shrink-0" />}
                       <span className="text-xs font-medium text-slate-700 block truncate">{u.file_name}</span>
                       <span className="text-[10px] text-slate-400">
                         {new Date(u.created_at).toLocaleDateString("nl-NL")}
@@ -466,14 +502,30 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
   return (
     <div className="flex flex-col items-center justify-center h-full">
       <div className="w-full max-w-lg">
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-50 rounded-xl mb-3">
-            <FileUp className="w-6 h-6 text-emerald-500" strokeWidth={1.5} />
+        <div className="flex items-start justify-between mb-6">
+          <div className="text-center flex-1">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-50 rounded-xl mb-3">
+              <FileUp className="w-6 h-6 text-emerald-500" strokeWidth={1.5} />
+            </div>
+            <h3 className="text-lg font-semibold text-slate-800">Upload a Document</h3>
+            <p className="text-sm text-slate-500 mt-1">
+              Upload a PDF, Word document, or text file for AI analysis and Q&A
+            </p>
           </div>
-          <h3 className="text-lg font-semibold text-slate-800">Upload a Document</h3>
-          <p className="text-sm text-slate-500 mt-1">
-            Upload a PDF, Word document, or text file for AI analysis and Q&A
-          </p>
+          {matterId && (
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all flex-shrink-0 ${
+                showHistory ? "bg-blue-50 border-blue-300 text-blue-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              History
+              {savedUploads.length > 0 && (
+                <span className="ml-0.5 text-[10px] text-slate-400">({savedUploads.length})</span>
+              )}
+            </button>
+          )}
         </div>
 
         <div
@@ -514,6 +566,44 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
             </>
           )}
         </div>
+
+        {showHistory && matterId && (
+          <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-slate-600">
+                Saved documents ({savedUploads.length})
+                {plan === "free" && <span className="ml-2 text-[10px] text-amber-600">Free plan: 1 per matter</span>}
+                {plan === "pro" && <span className="ml-2 text-[10px] text-emerald-600">Pro plan: unlimited</span>}
+              </span>
+              <button onClick={() => setShowHistory(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {savedUploads.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-2">No saved documents yet. Upload a file and click Save.</p>
+            ) : (
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {savedUploads.map((u) => (
+                  <div key={u.id} className={`group flex items-center gap-2 p-2 bg-white rounded-lg border hover:shadow-sm transition-all ${u.pinned ? "border-amber-300 bg-amber-50/30" : "border-slate-200"}`}>
+                    <button onClick={() => loadSavedUpload(u)} className="flex-1 text-left min-w-0 flex items-center gap-1.5">
+                      {u.pinned && <Pin className="w-3 h-3 text-amber-500 flex-shrink-0" />}
+                      <span className="text-xs font-medium text-slate-700 block truncate">{u.file_name}</span>
+                      <span className="text-[10px] text-slate-400">
+                        {new Date(u.created_at).toLocaleDateString("nl-NL")}
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUpload(u.id)}
+                      className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="mt-4 flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
