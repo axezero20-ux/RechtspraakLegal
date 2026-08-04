@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, FileText, AlertCircle, Loader2, Download, Send, MessageSquare, Sparkles, FileUp,
-  Save, Trash2, History, X, Pin, PinOff,
+  Save, Trash2, History, X, Pin, PinOff, Lock,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { ApiConfig, ChatMessage, MatterUpload, SubscriptionPlan } from "../types";
@@ -85,6 +85,7 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
   // Persistence state
   const [savedUploads, setSavedUploads] = useState<MatterUpload[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showPinned, setShowPinned] = useState(false);
   const [saving, setSaving] = useState(false);
   const [currentUploadId, setCurrentUploadId] = useState<string | null>(null);
   const [isPinned, setIsPinned] = useState(false);
@@ -282,10 +283,82 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
     setShowHistory(false);
   }
 
+  const pinnedUploads = savedUploads.filter((u) => u.pinned);
+
+  // ── Pinned documents panel (shared across both views) ──
+  const pinnedPanel = matterId ? (
+    <>
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          type="button"
+          onClick={() => { setShowPinned(!showPinned); if (!showPinned) loadSavedUploads(); }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+            showPinned ? "bg-amber-50 border-amber-300 text-amber-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          <Pin className="w-3.5 h-3.5" />
+          Pinned Documents
+          {pinnedUploads.length > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] rounded-full">
+              {pinnedUploads.length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {showPinned && (
+        <div className="mb-4 p-4 bg-amber-50/50 rounded-lg border border-amber-200">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-medium text-slate-600">Pinned Documents ({pinnedUploads.length})</span>
+            <button onClick={() => setShowPinned(false)} className="text-slate-400 hover:text-slate-600">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          {plan === "free" && (
+            <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1.5 bg-amber-100 border border-amber-300 rounded-md text-[11px] text-amber-800">
+              <Lock className="w-3 h-3 flex-shrink-0" />
+              <span>Free plan allows only 1 saved document per matter. Upgrade to Pro for unlimited.</span>
+            </div>
+          )}
+          {pinnedUploads.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-2">No pinned documents yet. Upload a file, save it, then click Pin.</p>
+          ) : (
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {pinnedUploads.map((u) => (
+                <div key={u.id} className="group flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 hover:shadow-sm transition-all">
+                  <button
+                    onClick={() => { loadSavedUpload(u); setShowPinned(false); }}
+                    className="flex-1 text-left min-w-0"
+                  >
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Pin className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                      <span className="text-[10px] font-medium text-slate-500 truncate">
+                        {new Date(u.created_at).toLocaleDateString("nl-NL")}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-700 block truncate">{u.file_name}</span>
+                  </button>
+                  <button
+                    onClick={async () => { await toggleMatterUploadPin(u.id, false); await loadSavedUploads(); }}
+                    title="Unpin document"
+                    className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <PinOff className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  ) : null;
+
   // ── File loaded view ──
   if (file && !loading) {
     return (
       <div className="flex flex-col h-full">
+        {pinnedPanel}
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-200">
           <div className="flex items-center gap-2 min-w-0">
@@ -500,32 +573,18 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
 
   // ── Upload view ──
   return (
-    <div className="flex flex-col items-center justify-center h-full">
+    <div className="flex flex-col h-full">
+      {pinnedPanel}
+      <div className="flex flex-col flex-1 items-center justify-center">
       <div className="w-full max-w-lg">
-        <div className="flex items-start justify-between mb-6">
-          <div className="text-center flex-1">
-            <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-50 rounded-xl mb-3">
-              <FileUp className="w-6 h-6 text-emerald-500" strokeWidth={1.5} />
-            </div>
-            <h3 className="text-lg font-semibold text-slate-800">Upload a Document</h3>
-            <p className="text-sm text-slate-500 mt-1">
-              Upload a PDF, Word document, or text file for AI analysis and Q&A
-            </p>
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-50 rounded-xl mb-3">
+            <FileUp className="w-6 h-6 text-emerald-500" strokeWidth={1.5} />
           </div>
-          {matterId && (
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all flex-shrink-0 ${
-                showHistory ? "bg-blue-50 border-blue-300 text-blue-600" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-              }`}
-            >
-              <History className="w-3.5 h-3.5" />
-              History
-              {savedUploads.length > 0 && (
-                <span className="ml-0.5 text-[10px] text-slate-400">({savedUploads.length})</span>
-              )}
-            </button>
-          )}
+          <h3 className="text-lg font-semibold text-slate-800">Upload a Document</h3>
+          <p className="text-sm text-slate-500 mt-1">
+            Upload a PDF, Word document, or text file for AI analysis and Q&A
+          </p>
         </div>
 
         <div
@@ -567,50 +626,13 @@ export default function PdfUploadPanel({ config, matterId }: Props) {
           )}
         </div>
 
-        {showHistory && matterId && (
-          <div className="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-slate-600">
-                Saved documents ({savedUploads.length})
-                {plan === "free" && <span className="ml-2 text-[10px] text-amber-600">Free plan: 1 per matter</span>}
-                {plan === "pro" && <span className="ml-2 text-[10px] text-emerald-600">Pro plan: unlimited</span>}
-              </span>
-              <button onClick={() => setShowHistory(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            {savedUploads.length === 0 ? (
-              <p className="text-xs text-slate-400 text-center py-2">No saved documents yet. Upload a file and click Save.</p>
-            ) : (
-              <div className="space-y-1 max-h-48 overflow-y-auto">
-                {savedUploads.map((u) => (
-                  <div key={u.id} className={`group flex items-center gap-2 p-2 bg-white rounded-lg border hover:shadow-sm transition-all ${u.pinned ? "border-amber-300 bg-amber-50/30" : "border-slate-200"}`}>
-                    <button onClick={() => loadSavedUpload(u)} className="flex-1 text-left min-w-0 flex items-center gap-1.5">
-                      {u.pinned && <Pin className="w-3 h-3 text-amber-500 flex-shrink-0" />}
-                      <span className="text-xs font-medium text-slate-700 block truncate">{u.file_name}</span>
-                      <span className="text-[10px] text-slate-400">
-                        {new Date(u.created_at).toLocaleDateString("nl-NL")}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => handleDeleteUpload(u.id)}
-                      className="p-1 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {error && (
           <div className="mt-4 flex items-start gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
             <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <span>{error}</span>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
