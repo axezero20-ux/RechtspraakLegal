@@ -1,11 +1,12 @@
 import { useState } from "react";
 import {
-  Scale, Settings, Sparkles, LogOut, FolderOpen,
+  Scale, Settings, Sparkles, LogOut, FolderOpen, HelpCircle, X,
 } from "lucide-react";
 import type { ApiConfig, CaseContent, Matter } from "../types";
 import CaseViewer from "./CaseViewer";
 import MattersSidebar from "./MattersSidebar";
 import MatterWorkspace from "./MatterWorkspace";
+import HelpPanel from "./HelpPanel";
 import { useAuth } from "../context/AuthContext";
 
 type Screen = "main" | "case";
@@ -20,6 +21,7 @@ export default function Dashboard({ config, onSettings }: Props) {
   const [screen, setScreen] = useState<Screen>("main");
   const [selectedEcli, setSelectedEcli] = useState<string | null>(null);
   const [activeMatter, setActiveMatter] = useState<Matter | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   function handleCaseSelected(ecli: string) {
     setSelectedEcli(ecli);
@@ -73,6 +75,13 @@ export default function Dashboard({ config, onSettings }: Props) {
               {config.provider === "claude" ? "Claude API" : "OpenRouter"}
             </span>
           </div>
+          <button
+            onClick={() => setShowHelp(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-all"
+          >
+            <HelpCircle className="w-4 h-4" />
+            <span className="text-xs font-medium">Help</span>
+          </button>
           <button
             onClick={onSettings}
             className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-all"
@@ -137,6 +146,27 @@ export default function Dashboard({ config, onSettings }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Help modal */}
+      {showHelp && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setShowHelp(false)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl h-[80vh] p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowHelp(false)}
+              className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <HelpPanel />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
