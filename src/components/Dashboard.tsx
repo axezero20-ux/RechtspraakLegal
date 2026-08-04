@@ -11,6 +11,8 @@ import { useAuth } from "../context/AuthContext";
 
 type Screen = "main" | "case";
 
+type CaseSource = "search" | "ecli";
+
 interface Props {
   config: ApiConfig;
   onSettings: () => void;
@@ -20,16 +22,19 @@ export default function Dashboard({ config, onSettings }: Props) {
   const { profile, signOut } = useAuth();
   const [screen, setScreen] = useState<Screen>("main");
   const [selectedEcli, setSelectedEcli] = useState<string | null>(null);
+  const [caseSource, setCaseSource] = useState<CaseSource>("search");
   const [activeMatter, setActiveMatter] = useState<Matter | null>(null);
   const [showHelp, setShowHelp] = useState(false);
 
   function handleCaseSelected(ecli: string) {
     setSelectedEcli(ecli);
+    setCaseSource("search");
     setScreen("case");
   }
 
   function handleCaseLoaded(content: CaseContent) {
     setSelectedEcli(content.ecli);
+    setCaseSource("ecli");
     setScreen("case");
   }
 
@@ -106,7 +111,7 @@ export default function Dashboard({ config, onSettings }: Props) {
         <div className="flex-1 overflow-hidden p-6">
           <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
             {screen === "case" && selectedEcli ? (
-              <CaseViewer ecli={selectedEcli} config={config} onBack={handleBackToMain} onCaseSelect={handleCaseSelected} />
+              <CaseViewer ecli={selectedEcli} config={config} onBack={handleBackToMain} onCaseSelect={handleCaseSelected} source={caseSource} />
             ) : activeMatter ? (
               <MatterWorkspace
                 matter={activeMatter}

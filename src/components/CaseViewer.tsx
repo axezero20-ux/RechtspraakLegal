@@ -8,7 +8,7 @@ import remarkGfm from "remark-gfm";
 import type { ApiConfig, CaseContent, ChatMessage, CaseAnalysis, PrecedentAnalysis } from "../types";
 import { getCaseContent, flexibleChat, summarizeCase } from "../api";
 import { exportToPDF } from "../pdfExport";
-import { fetchCaseView, upsertCaseView } from "../mattersApi";
+import { fetchCaseView, upsertCaseView, fetchEcliPin, upsertEcliPin } from "../mattersApi";
 import CaseAnalysisPanel from "./CaseAnalysisPanel";
 import SimilarPrecedentsPanel from "./SimilarPrecedentsPanel";
 
@@ -17,11 +17,12 @@ interface Props {
   config: ApiConfig;
   onBack: () => void;
   onCaseSelect: (ecli: string) => void;
+  source?: "search" | "ecli";
 }
 
 type Tab = "summary" | "analysis" | "precedents" | "chat" | "text";
 
-export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props) {
+export default function CaseViewer({ ecli, config, onBack, onCaseSelect, source = "search" }: Props) {
   const [caseContent, setCaseContent] = useState<CaseContent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
     try {
       const content = await getCaseContent(ecli);
       setCaseContent(content);
-      const saved = await fetchCaseView(ecli);
+      const saved = source === "ecli" ? await fetchEcliPin(ecli) : await fetchCaseView(ecli);
       if (saved) {
         setSummary(saved.summary);
         setAnalysis(saved.analysis);
@@ -122,13 +123,21 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect }: Props
     setSaving(true);
     setSaveError(null);
     try {
-      const saved = await upsertCaseView(ecli, {
-        title: caseContent?.metadata?.title || null,
-        summary,
-        analysis,
-        precedents,
-        chat: messages.length > 0 ? messages : null,
-      });
+      const saved = source === "ecli"
+        ? await upsertEcliPin(ecli, {
+            title: caseContent?.metadata?.title || null,
+            summary,
+            analysis,
+            precedents,
+            chat: messages.length > 0 ? messages : null,
+          })
+        : await upsertCaseView(ecli, {
+            title: caseContent?.metadata?.title || null,
+            summary,
+            analysis,
+            precedents,
+            chat: messages.length > 0 ? messages : null,
+          });
       setLastSavedAt(saved.updated_at);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "Failed to save");

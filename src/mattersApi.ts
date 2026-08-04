@@ -328,6 +328,32 @@ export async function addEcliPin(ecli: string, title?: string | null): Promise<E
   return data as EcliPin;
 }
 
+export async function fetchEcliPin(ecli: string): Promise<EcliPin | null> {
+  const { data, error } = await supabase
+    .from("ecli_pins")
+    .select("*")
+    .eq("ecli", ecli)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as EcliPin | null;
+}
+
+export async function upsertEcliPin(ecli: string, updates: {
+  title?: string | null;
+  summary?: string | null;
+  analysis?: CaseAnalysis | null;
+  precedents?: PrecedentAnalysis | null;
+  chat?: ChatMessage[] | null;
+}): Promise<EcliPin> {
+  const { data, error } = await supabase
+    .from("ecli_pins")
+    .upsert({ ecli, ...updates }, { onConflict: "user_id,ecli" })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as EcliPin;
+}
+
 export async function deleteEcliPin(ecli: string): Promise<void> {
   const { error } = await supabase.from("ecli_pins").delete().eq("ecli", ecli);
   if (error) throw new Error(error.message);
