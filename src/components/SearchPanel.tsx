@@ -400,14 +400,8 @@ export default function SearchPanel({ onCaseSelected, matterId }: Props) {
               <X className="w-4 h-4" />
             </button>
           </div>
-          {plan === "free" && (
-            <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1.5 bg-amber-100 border border-amber-300 rounded-md text-[11px] text-amber-800">
-              <Lock className="w-3 h-3 flex-shrink-0" />
-              <span>Free plan allows only 1 pinned case. Upgrade to Pro for unlimited pins.</span>
-            </div>
-          )}
           {pinnedCases.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-2">No pinned cases yet. Open a case and click Save to pin it.</p>
+            <p className="text-xs text-slate-400 text-center py-2">No saved cases yet. Open a case and click Save to pin it.</p>
           ) : (
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {pinnedCases.map((c) => (
