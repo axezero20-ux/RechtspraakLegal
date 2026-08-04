@@ -36,31 +36,25 @@ export default function EcliPanel({ onCaseLoaded, onCaseSelected }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!ecli.trim()) return;
+    const trimmed = ecli.trim();
+    if (!trimmed) return;
     setLoading(true);
     setError(null);
+    setPinError(null);
     try {
-      const content = await getCaseContent(ecli.trim());
+      const content = await getCaseContent(trimmed);
+      // Auto-pin on load
+      try {
+        await addEcliPin(trimmed, content.metadata?.title || null);
+        await loadPinnedCases();
+      } catch {
+        // pin failure is non-fatal (e.g. already pinned or plan limit)
+      }
       onCaseLoaded(content);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch case");
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function handlePin() {
-    const trimmed = ecli.trim();
-    if (!trimmed) return;
-    setPinError(null);
-    try {
-      // Fetch the case to get the title
-      const content = await getCaseContent(trimmed);
-      await addEcliPin(trimmed, content.metadata?.title || null);
-      await loadPinnedCases();
-      onCaseLoaded(content);
-    } catch (err) {
-      setPinError(err instanceof Error ? err.message : "Failed to pin case");
     }
   }
 
@@ -176,35 +170,23 @@ export default function EcliPanel({ onCaseLoaded, onCaseSelected }: Props) {
               </div>
             )}
 
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={loading || !ecli.trim()}
-                className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-all"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Loading case...
-                  </>
-                ) : (
-                  <>
-                    Load Case
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={handlePin}
-                disabled={loading || !ecli.trim()}
-                title="Load and pin this ECLI case"
-                className="flex items-center gap-2 px-4 py-3 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 disabled:opacity-50 transition-all"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pin className="w-4 h-4" />}
-                Pin
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={loading || !ecli.trim()}
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-all"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Loading case...
+                </>
+              ) : (
+                <>
+                  Load Case
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
           </form>
 
           <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-100">
