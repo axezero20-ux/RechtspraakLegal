@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import {
   Search, Plus, X, Loader2, GitCompare, AlertCircle,
   FileText, Scale, CheckCircle2, XCircle, ArrowRight, Sparkles, Download,
-  Save, Trash2, History,
+  Save, Trash2, History, Lock,
 } from "lucide-react";
-import type { ApiConfig, CaseComparison, CaseContent, MatterComparison } from "../types";
+import type { ApiConfig, CaseComparison, CaseContent, MatterComparison, SubscriptionPlan } from "../types";
 import { searchRechtspraak, getCaseContent, compareCases } from "../api";
 import { exportComparisonToPDF } from "../pdfExport";
-import { fetchMatterComparisons, saveMatterComparison, deleteMatterComparison } from "../mattersApi";
+import { fetchMatterComparisons, saveMatterComparison, deleteMatterComparison, fetchSubscription } from "../mattersApi";
 
 interface Props {
   config: ApiConfig;
@@ -36,6 +36,13 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
   const [savedComparisons, setSavedComparisons] = useState<MatterComparison[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [plan, setPlan] = useState<SubscriptionPlan>("free");
+
+  useEffect(() => {
+    fetchSubscription()
+      .then((sub) => setPlan(sub?.plan || "free"))
+      .catch(() => setPlan("free"));
+  }, []);
 
   const loadSavedComparisons = useCallback(async () => {
     if (!matterId) return;
@@ -218,6 +225,12 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
               <X className="w-4 h-4" />
             </button>
           </div>
+          {plan === "free" && (
+            <div className="flex items-center gap-1.5 mb-2 px-2.5 py-1.5 bg-blue-50 border border-blue-200 rounded-md text-[11px] text-blue-700">
+              <Lock className="w-3 h-3 flex-shrink-0" />
+              <span>Free plan keeps only the 1 most recent comparison. Upgrade to Pro for unlimited history.</span>
+            </div>
+          )}
           {savedComparisons.length === 0 ? (
             <p className="text-xs text-slate-400 text-center py-2">No saved comparisons yet. Run a comparison and click Save.</p>
           ) : (
