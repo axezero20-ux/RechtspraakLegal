@@ -307,6 +307,34 @@ export async function deleteCaseView(ecli: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+// ── ECLI Case Views (saved case work for ECLI-loaded cases) ───────────────────
+
+export async function fetchEcliCaseView(ecli: string): Promise<CaseView | null> {
+  const { data, error } = await supabase
+    .from("ecli_case_views")
+    .select("*")
+    .eq("ecli", ecli)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data as CaseView | null;
+}
+
+export async function upsertEcliCaseView(ecli: string, updates: {
+  title?: string | null;
+  summary?: string | null;
+  analysis?: CaseAnalysis | null;
+  precedents?: PrecedentAnalysis | null;
+  chat?: ChatMessage[] | null;
+}): Promise<CaseView> {
+  const { data, error } = await supabase
+    .from("ecli_case_views")
+    .upsert({ ecli, ...updates }, { onConflict: "user_id,ecli" })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data as CaseView;
+}
+
 // ── ECLI Pins (ECLI Code panel pinned cases, separate from case_views) ───────
 
 export async function fetchEcliPins(): Promise<EcliPin[]> {
@@ -324,32 +352,6 @@ export async function addEcliPin(ecli: string, title?: string | null): Promise<E
     .insert({ ecli, title: title || null })
     .select()
     .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data as EcliPin;
-}
-
-export async function fetchEcliPin(ecli: string): Promise<EcliPin | null> {
-  const { data, error } = await supabase
-    .from("ecli_pins")
-    .select("*")
-    .eq("ecli", ecli)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data as EcliPin | null;
-}
-
-export async function upsertEcliPin(ecli: string, updates: {
-  title?: string | null;
-  summary?: string | null;
-  analysis?: CaseAnalysis | null;
-  precedents?: PrecedentAnalysis | null;
-  chat?: ChatMessage[] | null;
-}): Promise<EcliPin> {
-  const { data, error } = await supabase
-    .from("ecli_pins")
-    .upsert({ ecli, ...updates }, { onConflict: "user_id,ecli" })
-    .select()
-    .single();
   if (error) throw new Error(error.message);
   return data as EcliPin;
 }

@@ -119,8 +119,8 @@ export default function Dashboard({ config, onSettings }: Props) {
                 config={config}
                 onBack={handleBackToMain}
                 onCaseSelect={handleCaseSelected}
-                onCaseLoaded={handleCaseLoaded}
                 onEcliCaseSelect={handleEcliCaseSelected}
+                onCaseLoaded={handleCaseLoaded}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center">

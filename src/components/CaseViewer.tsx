@@ -8,7 +8,7 @@ import remarkGfm from "remark-gfm";
 import type { ApiConfig, CaseContent, ChatMessage, CaseAnalysis, PrecedentAnalysis } from "../types";
 import { getCaseContent, flexibleChat, summarizeCase } from "../api";
 import { exportToPDF } from "../pdfExport";
-import { fetchCaseView, upsertCaseView, fetchEcliPin, upsertEcliPin } from "../mattersApi";
+import { fetchCaseView, upsertCaseView, fetchEcliCaseView, upsertEcliCaseView } from "../mattersApi";
 import CaseAnalysisPanel from "./CaseAnalysisPanel";
 import SimilarPrecedentsPanel from "./SimilarPrecedentsPanel";
 
@@ -62,7 +62,7 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect, source 
     try {
       const content = await getCaseContent(ecli);
       setCaseContent(content);
-      const saved = source === "ecli" ? await fetchEcliPin(ecli) : await fetchCaseView(ecli);
+      const saved = source === "ecli" ? await fetchEcliCaseView(ecli) : await fetchCaseView(ecli);
       if (saved) {
         setSummary(saved.summary);
         setAnalysis(saved.analysis);
@@ -124,7 +124,7 @@ export default function CaseViewer({ ecli, config, onBack, onCaseSelect, source 
     setSaveError(null);
     try {
       const saved = source === "ecli"
-        ? await upsertEcliPin(ecli, {
+        ? await upsertEcliCaseView(ecli, {
             title: caseContent?.metadata?.title || null,
             summary,
             analysis,
