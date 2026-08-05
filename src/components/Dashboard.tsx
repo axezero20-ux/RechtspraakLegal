@@ -32,6 +32,12 @@ export default function Dashboard({ config, onSettings }: Props) {
     setScreen("case");
   }
 
+  function handleEcliCaseSelected(ecli: string) {
+    setSelectedEcli(ecli);
+    setCaseSource("ecli");
+    setScreen("case");
+  }
+
   function handleCaseLoaded(content: CaseContent) {
     setSelectedEcli(content.ecli);
     setCaseSource("ecli");
@@ -114,6 +120,7 @@ export default function Dashboard({ config, onSettings }: Props) {
                 onBack={handleBackToMain}
                 onCaseSelect={handleCaseSelected}
                 onCaseLoaded={handleCaseLoaded}
+                onEcliCaseSelect={handleEcliCaseSelected}
               />
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-center">

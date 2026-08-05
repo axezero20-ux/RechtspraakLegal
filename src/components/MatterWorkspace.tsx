@@ -14,12 +14,13 @@ interface Props {
   config: ApiConfig;
   onBack: () => void;
   onCaseSelect: (ecli: string) => void;
+  onEcliCaseSelect: (ecli: string) => void;
   onCaseLoaded: (content: CaseContent) => void;
 }
 
 type Tab = "search" | "ecli" | "compare" | "upload";
 
-export default function MatterWorkspace({ matter, config, onBack, onCaseSelect, onCaseLoaded }: Props) {
+export default function MatterWorkspace({ matter, config, onBack, onCaseSelect, onEcliCaseSelect, onCaseLoaded }: Props) {
   const [tab, setTab] = useState<Tab>("search");
 
   const tabs: { id: Tab; label: string; icon: typeof FileText }[] = [
@@ -73,7 +74,7 @@ export default function MatterWorkspace({ matter, config, onBack, onCaseSelect, 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-y-auto mt-3">
         {tab === "search" && <SearchPanel onCaseSelected={onCaseSelect} matterId={matter.id} />}
-        {tab === "ecli" && <EcliPanel onCaseLoaded={onCaseLoaded} onCaseSelected={onCaseSelect} />}
+        {tab === "ecli" && <EcliPanel onCaseLoaded={onCaseLoaded} onCaseSelected={onEcliCaseSelect} />}
         {tab === "compare" && <CaseComparisonPanel config={config} matterId={matter.id} />}
         {tab === "upload" && <PdfUploadPanel config={config} matterId={matter.id} />}
       </div>
