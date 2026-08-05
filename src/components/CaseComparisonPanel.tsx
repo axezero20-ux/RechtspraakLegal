@@ -298,72 +298,6 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
         </div>
       )}
 
-      {/* Case slots — always visible */}
-      <div className={`grid gap-3 mt-4 flex-shrink-0 ${slots.length === 2 ? "grid-cols-2" : slots.length === 3 ? "grid-cols-3" : "grid-cols-2 lg:grid-cols-4"}`}>
-        {slots.map((slot, i) => (
-          <div
-            key={i}
-            className={`relative border-2 rounded-lg p-3 min-h-[120px] ${
-              slot.content ? "border-blue-200 bg-blue-50/30" : "border-dashed border-slate-200 bg-slate-50"
-            }`}
-          >
-            {slots.length > 2 && (
-              <button
-                onClick={() => removeSlot(i)}
-                className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-all"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-
-            {slot.loading ? (
-              <div className="flex flex-col items-center justify-center h-full py-4">
-                <Loader2 className="w-5 h-5 text-blue-500 animate-spin mb-2" />
-                <p className="text-xs text-slate-400">Loading...</p>
-              </div>
-            ) : slot.error ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <AlertCircle className="w-5 h-5 text-red-400 mb-1" />
-                <p className="text-xs text-red-600 mb-2">{slot.error}</p>
-                <button onClick={() => setActiveSlot(i)} className="text-xs text-blue-600 hover:underline">
-                  Try again
-                </button>
-              </div>
-            ) : slot.content ? (
-              <div>
-                <div className="flex items-start gap-1.5 mb-1">
-                  <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-[10px] font-mono text-blue-600 font-medium">{slot.content.ecli}</span>
-                </div>
-                <p className="text-xs text-slate-700 line-clamp-3">{slot.content.metadata?.title || slot.content.ecli}</p>
-                {slot.content.metadata?.creator && (
-                  <p className="text-[10px] text-slate-400 mt-1">{slot.content.metadata.creator}</p>
-                )}
-                {slot.content.metadata?.date && (
-                  <p className="text-[10px] text-slate-400">{slot.content.metadata.date}</p>
-                )}
-                <button
-                  onClick={() => setSlots((prev) => prev.map((s, j) => j === i ? { ...s, ecli: "", content: null } : s))}
-                  className="mt-2 text-[10px] text-slate-400 hover:text-red-500 transition-colors"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <button
-                  onClick={() => setActiveSlot(i)}
-                  className="flex flex-col items-center gap-1 text-slate-400 hover:text-blue-500 transition-colors"
-                >
-                  <Plus className="w-5 h-5" />
-                  <span className="text-xs">Add case</span>
-                </button>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
       {/* Search panel when a slot is active */}
       {activeSlot !== null && (
         <div className="mt-4 p-4 bg-white border border-slate-200 rounded-lg shadow-sm flex-shrink-0">
@@ -435,9 +369,76 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
         </div>
       )}
 
-      {/* Comparison results — scrollable */}
-      {comparison && !comparing && (
-        <div className="mt-4 flex-1 overflow-y-auto space-y-4 min-h-0">
+      {/* Scrollable container — case slots + results */}
+      <div className="mt-4 flex-1 overflow-y-auto space-y-4 min-h-0">
+        {/* Case slots */}
+        <div className={`grid gap-3 ${slots.length === 2 ? "grid-cols-2" : slots.length === 3 ? "grid-cols-3" : "grid-cols-2 lg:grid-cols-4"}`}>
+          {slots.map((slot, i) => (
+            <div
+              key={i}
+              className={`relative border-2 rounded-lg p-3 min-h-[120px] ${
+                slot.content ? "border-blue-200 bg-blue-50/30" : "border-dashed border-slate-200 bg-slate-50"
+              }`}
+            >
+              {slots.length > 2 && (
+                <button
+                  onClick={() => removeSlot(i)}
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-all"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+
+              {slot.loading ? (
+                <div className="flex flex-col items-center justify-center h-full py-4">
+                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin mb-2" />
+                  <p className="text-xs text-slate-400">Loading...</p>
+                </div>
+              ) : slot.error ? (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <AlertCircle className="w-5 h-5 text-red-400 mb-1" />
+                  <p className="text-xs text-red-600 mb-2">{slot.error}</p>
+                  <button onClick={() => setActiveSlot(i)} className="text-xs text-blue-600 hover:underline">
+                    Try again
+                  </button>
+                </div>
+              ) : slot.content ? (
+                <div>
+                  <div className="flex items-start gap-1.5 mb-1">
+                    <FileText className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <span className="text-[10px] font-mono text-blue-600 font-medium">{slot.content.ecli}</span>
+                  </div>
+                  <p className="text-xs text-slate-700 line-clamp-3">{slot.content.metadata?.title || slot.content.ecli}</p>
+                  {slot.content.metadata?.creator && (
+                    <p className="text-[10px] text-slate-400 mt-1">{slot.content.metadata.creator}</p>
+                  )}
+                  {slot.content.metadata?.date && (
+                    <p className="text-[10px] text-slate-400">{slot.content.metadata.date}</p>
+                  )}
+                  <button
+                    onClick={() => setSlots((prev) => prev.map((s, j) => j === i ? { ...s, ecli: "", content: null } : s))}
+                    className="mt-2 text-[10px] text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                  <button
+                    onClick={() => setActiveSlot(i)}
+                    className="flex flex-col items-center gap-1 text-slate-400 hover:text-blue-500 transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span className="text-xs">Add case</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {comparison && !comparing && (
+          <>
           {comparison.comparativeSummary && (
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
               <div className="flex items-center gap-2 mb-2">
@@ -530,8 +531,9 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
               <p className="text-sm text-slate-700">{comparison.legalEvolution}</p>
             </div>
           )}
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
