@@ -90,16 +90,23 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
 
   function loadSavedComparison(comp: MatterComparison) {
     setComparison(comp.result);
-    if (comp.cases && comp.cases.length > 0) {
+
+    const ecliList = (comp.eclis as string[]) || [];
+    const casesList: MatterComparisonCase[] =
+      comp.cases && comp.cases.length > 0
+        ? comp.cases
+        : ecliList.map((ecli) => ({ ecli }));
+
+    if (casesList.length > 0) {
       setSlots(
-        comp.cases.map((c: MatterComparisonCase) => ({
+        casesList.map((c) => ({
           ecli: c.ecli,
           content: {
             ecli: c.ecli,
             text: "",
             fullLength: 0,
             metadata: {
-              title: c.title ?? "",
+              title: c.title ?? c.ecli,
               creator: c.creator ?? "",
               date: c.date ?? "",
             },
@@ -109,6 +116,7 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
         }))
       );
     }
+
     setShowHistory(false);
   }
 
