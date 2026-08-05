@@ -48,10 +48,8 @@ export default function SignIn({ onSwitchToSignUp, onEmailVerificationNeeded }: 
 
       <div className="relative w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-2xl shadow-lg shadow-blue-500/20 mb-4">
-            <Scale className="w-9 h-9 text-white" strokeWidth={1.5} />
-          </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Rechtspraak AI</h1>
+          <img src="/logo.png" alt="Antilles Legal" className="w-16 h-16 rounded-2xl object-contain shadow-lg shadow-blue-500/20 mb-4" />
+          <h1 className="text-3xl font-bold text-white tracking-tight">Antilles Legal</h1>
           <p className="text-slate-400 mt-2">Sign in to your account</p>
         </div>
 

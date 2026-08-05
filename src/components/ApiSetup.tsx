@@ -66,12 +66,10 @@ export default function ApiSetup({ onComplete, isSettings, existingConfig, onCan
       <div className="relative w-full max-w-2xl">
         {/* Logo / Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-2xl shadow-lg shadow-blue-500/20 mb-4">
-            <Scale className="w-9 h-9 text-white" strokeWidth={1.5} />
-          </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Rechtspraak AI</h1>
+          <img src="/logo.png" alt="Antilles Legal" className="w-16 h-16 rounded-2xl object-contain shadow-lg shadow-blue-500/20 mb-4" />
+          <h1 className="text-3xl font-bold text-white tracking-tight">Antilles Legal</h1>
           <p className="text-slate-400 mt-2">
-            {isSettings ? "Update your API configuration" : "AI-Powered Dutch Legal Research Assistant"}
+            {isSettings ? "Update your API configuration" : "Legal Intelligence for the Dutch Caribbean"}
           </p>
         </div>
 

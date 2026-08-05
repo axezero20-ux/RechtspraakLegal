@@ -13,9 +13,7 @@ export default function EmailConfirmed({ onSwitchToSignIn }: Props) {
       </div>
 
       <div className="relative w-full max-w-md text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-2xl shadow-lg shadow-blue-500/20 mb-6">
-          <Scale className="w-9 h-9 text-white" strokeWidth={1.5} />
-        </div>
+        <img src="/logo.png" alt="Antilles Legal" className="w-16 h-16 rounded-2xl object-contain shadow-lg shadow-blue-500/20 mb-6" />
 
         <div className="bg-slate-800/70 backdrop-blur-xl border border-slate-700/50 rounded-2xl shadow-2xl p-8">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-500/20 rounded-2xl mb-6">
