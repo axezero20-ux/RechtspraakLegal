@@ -4,7 +4,7 @@ import {
   FileText, Scale, CheckCircle2, XCircle, ArrowRight, Sparkles, Download,
   Save, Trash2, History, Lock,
 } from "lucide-react";
-import type { ApiConfig, CaseComparison, CaseContent, MatterComparison, SubscriptionPlan } from "../types";
+import type { ApiConfig, CaseComparison, CaseContent, MatterComparison, MatterComparisonCase, SubscriptionPlan } from "../types";
 import { searchRechtspraak, getCaseContent, compareCases } from "../api";
 import { exportComparisonToPDF } from "../pdfExport";
 import { fetchMatterComparisons, saveMatterComparison, deleteMatterComparison, fetchSubscription } from "../mattersApi";
@@ -64,7 +64,13 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
     try {
       const loaded = slots.filter((s) => s.content);
       const eclis = loaded.map((s) => s.content!.ecli);
-      await saveMatterComparison(matterId, eclis, comparison);
+      const cases: MatterComparisonCase[] = loaded.map((s) => ({
+        ecli: s.content!.ecli,
+        title: s.content!.metadata?.title,
+        creator: s.content!.metadata?.creator,
+        date: s.content!.metadata?.date,
+      }));
+      await saveMatterComparison(matterId, eclis, comparison, cases);
       await loadSavedComparisons();
     } catch {
       // ignore
@@ -84,6 +90,25 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
 
   function loadSavedComparison(comp: MatterComparison) {
     setComparison(comp.result);
+    if (comp.cases && comp.cases.length > 0) {
+      setSlots(
+        comp.cases.map((c: MatterComparisonCase) => ({
+          ecli: c.ecli,
+          content: {
+            ecli: c.ecli,
+            text: "",
+            fullLength: 0,
+            metadata: {
+              title: c.title ?? "",
+              creator: c.creator ?? "",
+              date: c.date ?? "",
+            },
+          } as CaseContent,
+          loading: false,
+          error: null,
+        }))
+      );
+    }
     setShowHistory(false);
   }
 
@@ -151,7 +176,7 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+      <div className="flex items-center justify-between pb-4 border-b border-slate-200 flex-shrink-0">
         <div className="flex items-center gap-2">
           <GitCompare className="w-5 h-5 text-blue-500" />
           <h3 className="text-sm font-semibold text-slate-800">Case Comparison</h3>
@@ -216,9 +241,9 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
         </div>
       </div>
 
-      {/* Saved comparisons */}
+      {/* Saved comparisons history */}
       {showHistory && matterId && (
-        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+        <div className="mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-medium text-slate-600">Saved comparisons ({savedComparisons.length})</span>
             <button onClick={() => setShowHistory(false)} className="text-slate-400 hover:text-slate-600">
@@ -239,8 +264,15 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
                 <div key={c.id} className="group flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 hover:shadow-sm transition-all">
                   <button onClick={() => loadSavedComparison(c)} className="flex-1 text-left min-w-0">
                     <span className="text-xs font-medium text-slate-700 block truncate">
-                      {(c.eclis as string[]).join(" vs ")}
+                      {c.cases && c.cases.length > 0
+                        ? c.cases.map((cs) => cs.title || cs.ecli).join(" vs ")
+                        : (c.eclis as string[]).join(" vs ")}
                     </span>
+                    {c.cases && c.cases.length > 0 && (
+                      <span className="text-[10px] font-mono text-blue-500 block truncate">
+                        {c.cases.map((cs) => cs.ecli).join(" | ")}
+                      </span>
+                    )}
                     <span className="text-[10px] text-slate-400">
                       {new Date(c.created_at).toLocaleDateString("nl-NL")}
                     </span>
@@ -258,8 +290,8 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
         </div>
       )}
 
-      {/* Case slots */}
-      <div className={`grid gap-3 mt-4 ${slots.length === 2 ? "grid-cols-2" : slots.length === 3 ? "grid-cols-3" : "grid-cols-2 lg:grid-cols-4"}`}>
+      {/* Case slots — always visible */}
+      <div className={`grid gap-3 mt-4 flex-shrink-0 ${slots.length === 2 ? "grid-cols-2" : slots.length === 3 ? "grid-cols-3" : "grid-cols-2 lg:grid-cols-4"}`}>
         {slots.map((slot, i) => (
           <div
             key={i}
@@ -285,10 +317,7 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <AlertCircle className="w-5 h-5 text-red-400 mb-1" />
                 <p className="text-xs text-red-600 mb-2">{slot.error}</p>
-                <button
-                  onClick={() => setActiveSlot(i)}
-                  className="text-xs text-blue-600 hover:underline"
-                >
+                <button onClick={() => setActiveSlot(i)} className="text-xs text-blue-600 hover:underline">
                   Try again
                 </button>
               </div>
@@ -306,7 +335,7 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
                   <p className="text-[10px] text-slate-400">{slot.content.metadata.date}</p>
                 )}
                 <button
-                  onClick={() => { setSlots((prev) => prev.map((s, j) => j === i ? { ...s, ecli: "", content: null } : s)); }}
+                  onClick={() => setSlots((prev) => prev.map((s, j) => j === i ? { ...s, ecli: "", content: null } : s))}
                   className="mt-2 text-[10px] text-slate-400 hover:text-red-500 transition-colors"
                 >
                   Remove
@@ -327,9 +356,9 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
         ))}
       </div>
 
-      {/* Search modal when slot is active */}
+      {/* Search panel when a slot is active */}
       {activeSlot !== null && (
-        <div className="mt-4 p-4 bg-white border border-slate-200 rounded-lg shadow-sm">
+        <div className="mt-4 p-4 bg-white border border-slate-200 rounded-lg shadow-sm flex-shrink-0">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-medium text-slate-600">Find a case for slot {activeSlot + 1}</span>
             <button onClick={() => setActiveSlot(null)} className="text-slate-400 hover:text-slate-600">
@@ -383,24 +412,24 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
         </div>
       )}
 
-      {/* Comparison results */}
+      {/* Errors / loading */}
       {compareError && (
-        <div className="mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-center gap-2">
+        <div className="mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 flex items-center gap-2 flex-shrink-0">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           {compareError}
         </div>
       )}
 
       {comparing && (
-        <div className="flex flex-col items-center justify-center py-12">
+        <div className="flex flex-col items-center justify-center py-12 flex-shrink-0">
           <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-3" />
           <p className="text-sm text-slate-500">AI is comparing cases...</p>
         </div>
       )}
 
+      {/* Comparison results — scrollable */}
       {comparison && !comparing && (
-        <div className="mt-4 flex-1 overflow-y-auto space-y-4">
-          {/* Summary */}
+        <div className="mt-4 flex-1 overflow-y-auto space-y-4 min-h-0">
           {comparison.comparativeSummary && (
             <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
               <div className="flex items-center gap-2 mb-2">
@@ -411,7 +440,6 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
             </div>
           )}
 
-          {/* Common principles */}
           {comparison.commonPrinciples?.length > 0 && (
             <div>
               <h4 className="flex items-center gap-2 text-sm font-medium text-slate-700 mb-2">
@@ -429,7 +457,6 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
             </div>
           )}
 
-          {/* Convergence / Divergence */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {comparison.convergencePoints?.length > 0 && (
               <div className="p-3 bg-green-50 rounded-lg border border-green-100">
@@ -465,7 +492,6 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
             )}
           </div>
 
-          {/* Differences table */}
           {comparison.differences?.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-slate-700 mb-2">Key Differences</h4>
@@ -490,7 +516,6 @@ export default function CaseComparisonPanel({ config, matterId }: Props) {
             </div>
           )}
 
-          {/* Legal evolution */}
           {comparison.legalEvolution && (
             <div className="p-4 bg-amber-50 rounded-lg border border-amber-100">
               <h4 className="text-xs font-medium text-amber-700 mb-1">Legal Evolution</h4>
