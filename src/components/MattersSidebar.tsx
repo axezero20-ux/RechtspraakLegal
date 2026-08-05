@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  Scale, Plus, FolderOpen, Archive, MoreVertical, Pencil, Trash2,
+  Plus, FolderOpen, Archive, MoreVertical, Pencil, Trash2,
   ArchiveRestore, Loader2, X, Check, AlertCircle, Sparkles,
 } from "lucide-react";
 import type { Matter } from "../types";
@@ -126,9 +126,7 @@ export default function MattersSidebar({ activeMatterId, onSelectMatter }: Props
     <div className="w-64 bg-slate-900 flex flex-col h-full flex-shrink-0">
       {/* Header */}
       <div className="px-4 py-3 flex items-center gap-2 border-b border-slate-800">
-        <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-lg flex items-center justify-center">
-          <Scale className="w-4 h-4 text-white" strokeWidth={1.5} />
-        </div>
+        <img src="/logo.png" alt="Antilles Legal" className="w-7 h-7 rounded-lg object-contain" />
         <span className="text-sm font-semibold text-white">Matters</span>
       </div>
 

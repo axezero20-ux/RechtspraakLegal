@@ -53,13 +53,7 @@ export default function Dashboard({ config, onSettings }: Props) {
     <div className="h-screen flex flex-col bg-slate-100">
       {/* Top bar */}
       <header className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="Antilles Legal" className="w-9 h-9 rounded-lg object-contain" />
-          <div>
-            <h1 className="text-base font-bold text-slate-800">Antilles Legal</h1>
-            <p className="text-xs text-slate-400">Legal Intelligence for the Dutch Caribbean</p>
-          </div>
-        </div>
+        <div />
 
         <div className="flex items-center gap-3">
           {profile && (
