@@ -73,7 +73,7 @@ export default function MatterWorkspace({ matter, config, onBack, onCaseSelect, 
       {/* Content */}
       <div className="flex-1 min-h-0 overflow-y-auto mt-3">
         {tab === "search" && <SearchPanel onCaseSelected={onCaseSelect} matterId={matter.id} />}
-        {tab === "ecli" && <EcliPanel onCaseLoaded={onCaseLoaded} />}
+        {tab === "ecli" && <EcliPanel onCaseLoaded={onCaseLoaded} onCaseSelected={onCaseSelect} />}
         {tab === "compare" && <CaseComparisonPanel config={config} matterId={matter.id} />}
         {tab === "upload" && <PdfUploadPanel config={config} matterId={matter.id} />}
       </div>
