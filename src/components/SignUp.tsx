@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Scale, User, Mail, Phone, Lock, ArrowRight, AlertCircle, UserCheck } from "lucide-react";
+import { User, Mail, Phone, Lock, ArrowRight, AlertCircle, UserCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 interface Props {
@@ -71,7 +71,7 @@ export default function SignUp({ onSwitchToSignIn, onEmailVerificationNeeded }: 
 
       <div className="relative w-full max-w-lg">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="Antilles Legal" className="w-16 h-16 rounded-2xl object-contain shadow-lg shadow-blue-500/20 mb-4" />
+          <img src="/sidebardlogo_copy copy.jpg" alt="Antilles Legal" className="w-64 h-auto mx-auto object-contain mb-4" />
           <h1 className="text-3xl font-bold text-white tracking-tight">Antilles Legal</h1>
           <p className="text-slate-400 mt-2">Create your account to get started</p>
         </div>
