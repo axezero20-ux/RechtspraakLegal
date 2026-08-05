@@ -1,6 +1,6 @@
 import { useState } from "react";
 import {
-  Scale, Settings, Sparkles, LogOut, FolderOpen, HelpCircle, X,
+  Settings, Sparkles, LogOut, FolderOpen, HelpCircle, X,
 } from "lucide-react";
 import type { ApiConfig, CaseContent, Matter } from "../types";
 import CaseViewer from "./CaseViewer";
@@ -53,7 +53,10 @@ export default function Dashboard({ config, onSettings }: Props) {
     <div className="h-screen flex flex-col bg-slate-100">
       {/* Top bar */}
       <header className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
-        <div />
+        <div>
+          <h1 className="text-base font-bold tracking-tight text-slate-800">Antilles Legal</h1>
+          <p className="text-xs text-slate-400">Legal Intelligence for the Dutch Caribbean</p>
+        </div>
 
         <div className="flex items-center gap-3">
           {profile && (
@@ -100,8 +103,8 @@ export default function Dashboard({ config, onSettings }: Props) {
       <div className="flex-1 flex overflow-hidden">
         <MattersSidebar activeMatterId={activeMatter?.id || null} onSelectMatter={handleSelectMatter} />
 
-        <div className="flex-1 overflow-hidden p-6">
-          <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
+        <div className="flex-1 overflow-hidden p-6 max-md:p-3">
+          <div className="h-full bg-white rounded-2xl shadow-sm border border-slate-200 p-6 max-md:p-4 overflow-hidden">
             {screen === "case" && selectedEcli ? (
               <CaseViewer ecli={selectedEcli} config={config} onBack={handleBackToMain} onCaseSelect={handleCaseSelected} source={caseSource} />
             ) : activeMatter ? (

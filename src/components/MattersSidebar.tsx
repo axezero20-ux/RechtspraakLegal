@@ -124,10 +124,9 @@ export default function MattersSidebar({ activeMatterId, onSelectMatter }: Props
 
   return (
     <div className="w-64 bg-slate-900 flex flex-col h-full flex-shrink-0">
-      {/* Header */}
-      <div className="px-4 py-3 flex items-center gap-2 border-b border-slate-800">
-        <img src="/logo.png" alt="Antilles Legal" className="w-7 h-7 rounded-lg object-contain" />
-        <span className="text-sm font-semibold text-white">Matters</span>
+      {/* Brand */}
+      <div className="px-4 py-4 flex items-center justify-center border-b border-slate-800">
+        <img src="/sidebardlogo_copy.jpg" alt="Antilles Legal" className="w-full h-auto object-contain" />
       </div>
 
       {/* New Matter button */}
