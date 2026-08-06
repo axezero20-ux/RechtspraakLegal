@@ -8,12 +8,9 @@ import type {
   SearchResult,
 } from "./types";
 
-const SUPABASE_URL = "https://hormtmwyckjiaxalonum.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhvcm10bXd5Y2tqaWF4YWxvbnVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1NjU4NjMsImV4cCI6MjEwMTE0MTg2M30.KiSDEU-sTobgNV7D0QUwEOwItJxALpNMlRs7UBezpl4";
-
-const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/rechtspraak-ai`;
+const EDGE_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/rechtspraak-ai`;
 const HEADERS = {
-  Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+  Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
   "Content-Type": "application/json",
 };
 

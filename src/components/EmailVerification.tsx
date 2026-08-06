@@ -64,7 +64,7 @@ export default function EmailVerification({ email, onSwitchToSignIn }: Props) {
 
       <div className="relative w-full max-w-md">
         <div className="text-center mb-8">
-          <img src="./logo.png" alt="Antilles Legal" className="w-16 h-16 rounded-2xl object-contain shadow-lg shadow-blue-500/20 mb-4" />
+          <img src="/logo.png" alt="Antilles Legal" className="w-16 h-16 rounded-2xl object-contain shadow-lg shadow-blue-500/20 mb-4" />
           <h1 className="text-3xl font-bold text-white tracking-tight">Verify Your Email</h1>
           <p className="text-slate-400 mt-2">Enter the code we sent to your inbox</p>
         </div>

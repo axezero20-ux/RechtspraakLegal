@@ -1,8 +1,4 @@
 import { supabase } from "./lib/supabase";
-
-const SUPABASE_URL = "https://hormtmwyckjiaxalonum.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhvcm10bXd5Y2tqaWF4YWxvbnVtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU1NjU4NjMsImV4cCI6MjEwMTE0MTg2M30.KiSDEU-sTobgNV7D0QUwEOwItJxALpNMlRs7UBezpl4";
-
 import type {
   Matter, MatterItem, MatterChat, ChatMessage, Subscription,
   MatterSearch, MatterComparison, MatterUpload, SearchResult, CaseComparison,
@@ -143,13 +139,13 @@ export async function checkMatterLimit(): Promise<{ allowed: boolean; plan: stri
   const token = session.session?.access_token;
   if (!token) throw new Error("Not authenticated");
 
-  const url = `${SUPABASE_URL}/functions/v1/matter-limits`;
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/matter-limits`;
   const response = await fetch(url, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      apikey: SUPABASE_ANON_KEY,
+      apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
     },
   });
   if (!response.ok) {
