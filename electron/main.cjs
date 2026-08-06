@@ -83,6 +83,7 @@ function createWindow() {
     minHeight: 700,
     title: "Antilles Legal",
     backgroundColor: "#f8fafc",
+    icon: path.join(__dirname, "..", "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
