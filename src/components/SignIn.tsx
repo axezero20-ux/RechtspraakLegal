@@ -48,7 +48,7 @@ export default function SignIn({ onSwitchToSignUp, onEmailVerificationNeeded }: 
 
       <div className="relative w-full max-w-md">
         <div className="text-center mb-8">
-          <img src="/AskJuris_Logo.jpg" alt="Antilles Legal" className="w-64 h-auto mx-auto object-contain mb-4" />
+          <img src="/AskJuris_Logo.jpg" alt="Antilles Legal" className="h-auto mx-auto object-contain mb-4" />
           <h1 className="text-3xl font-bold text-white tracking-tight"></h1>
           <p className="text-slate-400 mt-2">Sign in to your account</p>
         </div>
