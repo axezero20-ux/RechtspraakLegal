@@ -60,11 +60,6 @@ export default function Dashboard({ config, onSettings }: Props) {
       {/* Top bar */}
       <header className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
         <div>
-          <h1 className="text-base font-bold tracking-tight text-slate-800">Antilles Legal</h1>
-          <p className="text-xs text-slate-400">Legal Intelligence for the Dutch Caribbean</p>
-        </div>
-
-        <div className="flex items-center gap-3">
           {profile && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
               <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
@@ -75,6 +70,10 @@ export default function Dashboard({ config, onSettings }: Props) {
               </span>
             </div>
           )}
+        </div>
+
+        <div className="flex items-center gap-3">
+
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 rounded-lg border border-slate-200">
             <Sparkles className="w-3.5 h-3.5 text-blue-500" />
             <span className="text-xs text-slate-600">
