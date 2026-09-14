@@ -71,8 +71,8 @@ export default function SignUp({ onSwitchToSignIn, onEmailVerificationNeeded }: 
 
       <div className="relative w-full max-w-lg">
         <div className="text-center mb-8">
-          <img src="/AskJuris_Logo.jpg" alt="Antilles Legal" className="w-64 h-auto mx-auto object-contain mb-4" />
-          <h1 className="text-3xl font-bold text-white tracking-tight">Antilles Legal</h1>
+          <img src="/AskJuris_Logo.jpg" alt="Antilles Legal" className=" h-auto mx-auto object-contain mb-4" />
+          <h1 className="text-3xl font-bold text-white tracking-tight"></h1>
           <p className="text-slate-400 mt-2">Create your account to get started</p>
         </div>
 
