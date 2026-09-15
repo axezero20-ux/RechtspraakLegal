@@ -184,8 +184,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function sendPasswordResetOtp(email: string): Promise<{ error: string | null }> {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin },
     });
     if (error) return { error: error.message };
     return { error: null };
@@ -199,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error: verifyError } = await supabase.auth.verifyOtp({
       email,
       token,
-      type: "recovery",
+      type: "email",
     });
     if (verifyError) return { error: verifyError.message };
 
@@ -207,6 +208,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: newPassword,
     });
     if (updateError) return { error: updateError.message };
+
+    await supabase.auth.signOut();
+    setSession(null);
+    setProfile(null);
 
     return { error: null };
   }
