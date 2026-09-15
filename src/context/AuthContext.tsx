@@ -184,12 +184,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function sendPasswordResetOtp(email: string): Promise<{ error: string | null }> {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    });
-    if (error) return { error: error.message };
-    return { error: null };
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const response = await fetch(`${supabaseUrl}/functions/v1/password-reset-otp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        return { error: data.error || "Failed to send reset code" };
+      }
+
+      return { error: null };
+    } catch {
+      return { error: "Network error. Please try again." };
+    }
   }
 
   async function verifyResetOtpAndUpdatePassword(
@@ -197,23 +212,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     token: string,
     newPassword: string
   ): Promise<{ error: string | null }> {
-    const { error: verifyError } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: "email",
-    });
-    if (verifyError) return { error: verifyError.message };
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const response = await fetch(`${supabaseUrl}/functions/v1/password-reset-verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({ email, code: token, newPassword }),
+      });
 
-    const { error: updateError } = await supabase.auth.updateUser({
-      password: newPassword,
-    });
-    if (updateError) return { error: updateError.message };
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        return { error: data.error || "Failed to reset password" };
+      }
 
-    await supabase.auth.signOut();
-    setSession(null);
-    setProfile(null);
-
-    return { error: null };
+      return { error: null };
+    } catch {
+      return { error: "Network error. Please try again." };
+    }
   }
 
   async function refreshProfile() {
