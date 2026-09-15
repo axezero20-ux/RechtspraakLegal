@@ -28,6 +28,7 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   verifyEmailOtp: (email: string, token: string) => Promise<{ error: string | null }>;
+  resetPassword: (email: string) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -177,6 +178,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }
 
+  async function resetPassword(email: string): Promise<{ error: string | null }> {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    if (error) return { error: error.message };
+    return { error: null };
+  }
+
   async function refreshProfile() {
     if (session?.user) {
       await fetchProfile(session.user.id);
@@ -195,6 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     refreshProfile,
     verifyEmailOtp,
+    resetPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
