@@ -28,7 +28,12 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   verifyEmailOtp: (email: string, token: string) => Promise<{ error: string | null }>;
-  resetPassword: (email: string) => Promise<{ error: string | null }>;
+  sendPasswordResetOtp: (email: string) => Promise<{ error: string | null }>;
+  verifyResetOtpAndUpdatePassword: (
+    email: string,
+    token: string,
+    newPassword: string
+  ) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -178,11 +183,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }
 
-  async function resetPassword(email: string): Promise<{ error: string | null }> {
+  async function sendPasswordResetOtp(email: string): Promise<{ error: string | null }> {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
     });
     if (error) return { error: error.message };
+    return { error: null };
+  }
+
+  async function verifyResetOtpAndUpdatePassword(
+    email: string,
+    token: string,
+    newPassword: string
+  ): Promise<{ error: string | null }> {
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      email,
+      token,
+      type: "recovery",
+    });
+    if (verifyError) return { error: verifyError.message };
+
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (updateError) return { error: updateError.message };
+
     return { error: null };
   }
 
@@ -204,7 +229,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     refreshProfile,
     verifyEmailOtp,
-    resetPassword,
+    sendPasswordResetOtp,
+    verifyResetOtpAndUpdatePassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
