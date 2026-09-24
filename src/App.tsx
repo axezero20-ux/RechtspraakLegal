@@ -5,7 +5,6 @@ import SignUp from "./components/SignUp";
 import SignIn from "./components/SignIn";
 import EmailConfirmed from "./components/EmailConfirmed";
 import EmailVerification from "./components/EmailVerification";
-import ForgotPassword from "./components/ForgotPassword";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import type { ApiConfig } from "./types";
 import { getApiConfig, getDefaultApiConfig, saveApiConfig } from "./storage";
@@ -19,7 +18,7 @@ function loadConfig(): ApiConfig {
   return defaults;
 }
 
-type AuthScreen = "signin" | "signup" | "verification" | "forgot";
+type AuthScreen = "signin" | "signup" | "verification";
 
 function AppContent() {
   const { session, user, loading, emailConfirmed, clearEmailConfirmed } = useAuth();
@@ -64,14 +63,9 @@ function AppContent() {
       );
     }
 
-    if (authScreen === "forgot") {
-      return <ForgotPassword onSwitchToSignIn={() => setAuthScreen("signin")} />;
-    }
-
     return (
       <SignIn
         onSwitchToSignUp={() => setAuthScreen("signup")}
-        onSwitchToForgotPassword={() => setAuthScreen("forgot")}
         onEmailVerificationNeeded={(email) => {
           setPendingEmail(email);
           setAuthScreen("verification");

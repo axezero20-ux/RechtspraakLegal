@@ -4,11 +4,10 @@ import { useAuth } from "../context/AuthContext";
 
 interface Props {
   onSwitchToSignUp: () => void;
-  onSwitchToForgotPassword: () => void;
   onEmailVerificationNeeded: (email: string) => void;
 }
 
-export default function SignIn({ onSwitchToSignUp, onSwitchToForgotPassword, onEmailVerificationNeeded }: Props) {
+export default function SignIn({ onSwitchToSignUp, onEmailVerificationNeeded }: Props) {
   const { signIn } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,13 +88,6 @@ export default function SignIn({ onSwitchToSignUp, onSwitchToForgotPassword, onE
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={onSwitchToForgotPassword}
-                className="mt-2 text-xs text-blue-400 hover:text-blue-300 hover:underline transition-colors"
-              >
-                Forgot password?
-              </button>
             </div>
 
             {error && (

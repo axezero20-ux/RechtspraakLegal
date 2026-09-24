@@ -28,12 +28,6 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   verifyEmailOtp: (email: string, token: string) => Promise<{ error: string | null }>;
-  sendPasswordResetOtp: (email: string) => Promise<{ error: string | null }>;
-  verifyResetOtpAndUpdatePassword: (
-    email: string,
-    token: string,
-    newPassword: string
-  ) => Promise<{ error: string | null }>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -183,58 +177,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }
 
-  async function sendPasswordResetOtp(email: string): Promise<{ error: string | null }> {
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const response = await fetch(`${supabaseUrl}/functions/v1/password-reset-otp`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        return { error: data.error || "Failed to send reset code" };
-      }
-
-      return { error: null };
-    } catch {
-      return { error: "Network error. Please try again." };
-    }
-  }
-
-  async function verifyResetOtpAndUpdatePassword(
-    email: string,
-    token: string,
-    newPassword: string
-  ): Promise<{ error: string | null }> {
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      const response = await fetch(`${supabaseUrl}/functions/v1/password-reset-verify`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({ email, code: token, newPassword }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        return { error: data.error || "Failed to reset password" };
-      }
-
-      return { error: null };
-    } catch {
-      return { error: "Network error. Please try again." };
-    }
-  }
-
   async function refreshProfile() {
     if (session?.user) {
       await fetchProfile(session.user.id);
@@ -253,8 +195,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     refreshProfile,
     verifyEmailOtp,
-    sendPasswordResetOtp,
-    verifyResetOtpAndUpdatePassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

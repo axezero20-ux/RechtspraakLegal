@@ -1,10 +1,10 @@
 {
-  "name": "askjuris-ai",
+  "name": "rechtspraak-ai",
   "private": true,
   "version": "1.0.0",
   "type": "module",
   "main": "electron/main.cjs",
-  "description": "Your AI Legal Assistant",
+  "description": "AI-powered Dutch legal case search and analysis tool",
   "author": {
     "name": "Leronegroup",
     "email": "info@leronegroup.com"
@@ -22,8 +22,8 @@
     "dist:linux": "vite build && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --linux"
   },
   "build": {
-    "appId": "com.askjuris.ai",
-    "productName": "Ask Juris AI",
+    "appId": "com.rechtspraak.ai",
+    "productName": "Rechtspraak AI",
     "directories": {
       "output": "release"
     },
@@ -34,7 +34,7 @@
       "package.json"
     ],
     "win": {
-      "icon": "build/icon.ico",
+      "icon": "build/icon.png",
       "target": [
         "nsis"
       ]
